@@ -1,7 +1,7 @@
 import queue
 import threading
 import tkinter as tk
-from tkinter import filedialog, ttk
+from tkinter import filedialog, simpledialog, ttk
 
 from agent import CardGenerator
 from decorators import handle_errors, log_action
@@ -29,12 +29,72 @@ def _style_btn(btn: tk.Button, primary: bool = False) -> None:
     )
 
 
+class ApiKeyDialog(tk.Toplevel):
+    """Modal dialog for entering / changing the DeepSeek API key."""
+
+    def __init__(self, master, current_key: str = "", on_save=None):
+        super().__init__(master)
+        self.title("API Key")
+        self.configure(bg=BG)
+        self.resizable(False, False)
+        self.grab_set()  # modal
+        self._on_save = on_save
+        self._build(current_key)
+        self.transient(master)
+        self.wait_visibility()
+        self.focus_force()
+
+    def _build(self, current_key: str) -> None:
+        pad = {"padx": 24, "pady": 8}
+
+        tk.Label(self, text="DeepSeek API Key", bg=BG, fg=ACCENT,
+                 font=("Helvetica", 14, "bold")).pack(**pad)
+        tk.Label(self,
+                 text="Get your key at platform.deepseek.com → API Keys",
+                 bg=BG, fg="#888", font=("Helvetica", 10)).pack(padx=24, pady=(0, 8))
+
+        self._entry = tk.Entry(self, width=52, bg=ENTRY_BG, fg=FG,
+                               insertbackground=FG, font=("Helvetica", 11),
+                               relief="flat", show="•")
+        self._entry.pack(padx=24, pady=4)
+        self._entry.insert(0, current_key)
+
+        show_var = tk.BooleanVar(value=False)
+
+        def _toggle():
+            self._entry.configure(show="" if show_var.get() else "•")
+
+        tk.Checkbutton(self, text="Show key", variable=show_var, command=_toggle,
+                       bg=BG, fg="#888", selectcolor=BG,
+                       activebackground=BG, font=("Helvetica", 10)).pack(padx=24, anchor="w")
+
+        row = tk.Frame(self, bg=BG)
+        row.pack(pady=12)
+
+        cancel_btn = tk.Button(row, text="Cancel", command=self.destroy)
+        _style_btn(cancel_btn)
+        cancel_btn.pack(side="left", padx=6)
+
+        save_btn = tk.Button(row, text="Save", command=self._save)
+        _style_btn(save_btn, primary=True)
+        save_btn.pack(side="left", padx=6)
+
+        self._entry.bind("<Return>", lambda _: self._save())
+
+    def _save(self) -> None:
+        key = self._entry.get().strip()
+        if self._on_save:
+            self._on_save(key)
+        self.destroy()
+
+
 class GenerateScreen(tk.Frame):
-    def __init__(self, master, on_cards_added, on_study):
+    def __init__(self, master, api_key: str, on_cards_added, on_study, on_key_change):
         super().__init__(master, bg=BG)
         self._on_cards_added = on_cards_added
         self._on_study = on_study
-        self._generator = CardGenerator()
+        self._on_key_change = on_key_change
+        self._generator = CardGenerator(api_key)
         self._queue: queue.Queue = queue.Queue()
         self._source_path = "pasted text"
         self._build()
@@ -45,7 +105,7 @@ class GenerateScreen(tk.Frame):
         tk.Label(self, text="Paste lecture text or open a file to generate flashcards",
                  bg=BG, fg="#888", font=("Helvetica", 11)).pack(pady=(0, 14))
 
-        self._text = tk.Text(self, height=14, bg=ENTRY_BG, fg=FG, insertbackground=FG,
+        self._text = tk.Text(self, height=13, bg=ENTRY_BG, fg=FG, insertbackground=FG,
                              font=("Helvetica", 11), relief="flat", padx=10, pady=8,
                              wrap="word")
         self._text.pack(fill="x", padx=30, pady=(0, 10))
@@ -61,12 +121,36 @@ class GenerateScreen(tk.Frame):
         _style_btn(gen_btn, primary=True)
         gen_btn.pack(side="left", padx=6)
 
+        key_btn = tk.Button(row, text="⚙ API Key", command=self._open_key_dialog)
+        _style_btn(key_btn)
+        key_btn.pack(side="left", padx=6)
+
         self._status = tk.Label(self, text="", bg=BG, fg="#888", font=("Helvetica", 10))
         self._status.pack(pady=6)
 
         self._study_btn = tk.Button(self, text="Study now  →", command=self._on_study)
         _style_btn(self._study_btn, primary=True)
         # hidden until cards are generated
+
+        if not self._generator.api_key:
+            self._status.configure(
+                text="No API key set. Click ⚙ API Key to configure.",
+                fg="#ff6b6b")
+
+    def set_api_key(self, key: str) -> None:
+        self._generator.api_key = key
+
+    def _open_key_dialog(self) -> None:
+        ApiKeyDialog(self, current_key=self._generator.api_key,
+                     on_save=self._handle_key_save)
+
+    def _handle_key_save(self, key: str) -> None:
+        self._generator.api_key = key
+        self._on_key_change(key)
+        if key:
+            self._status.configure(text="API key saved.", fg="#4aff9e")
+        else:
+            self._status.configure(text="API key cleared.", fg="#ff6b6b")
 
     @handle_errors
     def _open_file(self) -> None:
@@ -86,6 +170,9 @@ class GenerateScreen(tk.Frame):
 
     @handle_errors
     def _generate(self) -> None:
+        if not self._generator.api_key:
+            self._open_key_dialog()
+            return
         text = self._text.get("1.0", "end").strip()
         if not text:
             self._status.configure(text="Paste or open a lecture first.", fg="#ff6b6b")
@@ -97,6 +184,7 @@ class GenerateScreen(tk.Frame):
     @log_action
     def _run_async(self, text: str) -> None:
         source = self._source_path
+
         def worker():
             try:
                 cards = self._generator.generate(text, source_file=source)
@@ -131,7 +219,7 @@ class DeckScreen(tk.Frame):
         super().__init__(master, bg=BG)
         self._deck = deck
         self._on_delete = on_delete
-        self._selected_id: str | None = None
+        self._selected_id = None
         self._build()
 
     def _build(self) -> None:
@@ -171,7 +259,7 @@ class DeckScreen(tk.Frame):
         self._info = tk.Label(self, text="", bg=BG, fg="#888", font=("Helvetica", 10))
         self._info.pack()
 
-        self._ids: list[str] = []
+        self._ids = []
         self.refresh()
 
     def refresh(self) -> None:
@@ -206,7 +294,7 @@ class StudyScreen(tk.Frame):
         super().__init__(master, bg=BG)
         self._deck = deck
         self._on_done = on_done
-        self._cards: list = []
+        self._cards = []
         self._idx = 0
         self._build()
 
@@ -272,6 +360,23 @@ class StudyScreen(tk.Frame):
         else:
             self._show_current()
 
+    def _show_empty(self) -> None:
+        for widget in self.winfo_children():
+            widget.pack_forget()
+
+        tk.Label(self, text="No cards to study yet.", bg=BG, fg=ACCENT,
+                 font=("Helvetica", 18, "bold")).pack(pady=(80, 10))
+        tk.Label(self, text="Go to Generate and add some flashcards first.",
+                 bg=BG, fg="#888", font=("Helvetica", 12)).pack()
+
+        if self._deck.stats()["total"] > 0:
+            tk.Label(self, text="(All cards are marked as Known — great job!)",
+                     bg=BG, fg="#4aff9e", font=("Helvetica", 11)).pack(pady=6)
+
+        back_btn = tk.Button(self, text="Back to deck", command=self._on_done)
+        _style_btn(back_btn, primary=True)
+        back_btn.pack(pady=20)
+
     def _show_stats(self) -> None:
         for widget in self.winfo_children():
             widget.pack_forget()
@@ -286,7 +391,6 @@ class StudyScreen(tk.Frame):
             (f"Known: {stats['known']}  |  Review: {stats['review']}", "#4aff9e", 13, "normal"),
             (f"Overall accuracy: {stats['accuracy']}%", "#ffd700", 16, "bold"),
         ]
-        colors_start = ["#0d1117"] * len(lines)
         target_fills = [l[1] for l in lines]
 
         items = []
@@ -300,11 +404,9 @@ class StudyScreen(tk.Frame):
             t = min(1.0, step / 20)
             for idx2, item in enumerate(items):
                 r0, g0, b0 = 0x0d, 0x11, 0x17
-                tr, tg, tb = (
-                    int(target_fills[idx2][1:3], 16),
-                    int(target_fills[idx2][3:5], 16),
-                    int(target_fills[idx2][5:7], 16),
-                )
+                tr = int(target_fills[idx2][1:3], 16)
+                tg = int(target_fills[idx2][3:5], 16)
+                tb = int(target_fills[idx2][5:7], 16)
                 r = int(r0 + (tr - r0) * t)
                 g = int(g0 + (tg - g0) * t)
                 b = int(b0 + (tb - b0) * t)
@@ -324,21 +426,3 @@ class StudyScreen(tk.Frame):
         back_btn = tk.Button(self, text="Back to deck", command=self._on_done)
         _style_btn(back_btn, primary=True)
         back_btn.pack(pady=8)
-
-    def _show_empty(self) -> None:
-        for widget in self.winfo_children():
-            widget.pack_forget()
-
-        tk.Label(self, text="No cards to study yet.", bg=BG, fg=ACCENT,
-                 font=("Helvetica", 18, "bold")).pack(pady=(80, 10))
-        tk.Label(self, text="Go to Generate and add some flashcards first.",
-                 bg=BG, fg="#888", font=("Helvetica", 12)).pack()
-
-        all_known = self._deck.stats()["total"] > 0
-        if all_known:
-            tk.Label(self, text="(All cards are marked as Known — great job!)",
-                     bg=BG, fg="#4aff9e", font=("Helvetica", 11)).pack(pady=6)
-
-        back_btn = tk.Button(self, text="Back to deck", command=self._on_done)
-        _style_btn(back_btn, primary=True)
-        back_btn.pack(pady=20)

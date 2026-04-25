@@ -1,9 +1,10 @@
+import os
 import tkinter as tk
 from tkinter import ttk
 
 from deck import Deck
-from screens import DeckScreen, GenerateScreen, StudyScreen
-from storage import load_deck, save_deck
+from screens import ApiKeyDialog, DeckScreen, GenerateScreen, StudyScreen
+from storage import load_config, load_deck, save_config, save_deck
 
 BG = "#0d1117"
 FG = "#e8e8e8"
@@ -14,15 +15,34 @@ class App:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("AutoFlash")
-        self.root.geometry("640x560")
+        self.root.geometry("640x580")
         self.root.configure(bg=BG)
         self.root.resizable(False, False)
 
         self._apply_theme()
         self.deck: Deck = load_deck()
+        self._api_key: str = self._load_api_key()
         self._current_screen = None
         self._build_nav()
         self._show_generate()
+
+        if not self._api_key:
+            ApiKeyDialog(self.root, current_key="", on_save=self._handle_key_save)
+
+    def _load_api_key(self) -> str:
+        env_key = os.environ.get("DEEPSEEK_API_KEY", "")
+        if env_key:
+            return env_key
+        config = load_config()
+        return config.get("api_key", "")
+
+    def _handle_key_save(self, key: str) -> None:
+        self._api_key = key
+        config = load_config()
+        config["api_key"] = key
+        save_config(config)
+        if self._current_screen and hasattr(self._current_screen, "set_api_key"):
+            self._current_screen.set_api_key(key)
 
     def _apply_theme(self) -> None:
         style = ttk.Style(self.root)
@@ -54,9 +74,13 @@ class App:
         screen.pack(fill="both", expand=True)
 
     def _show_generate(self) -> None:
-        screen = GenerateScreen(self.root,
-                                on_cards_added=self._on_cards_added,
-                                on_study=self._show_study)
+        screen = GenerateScreen(
+            self.root,
+            api_key=self._api_key,
+            on_cards_added=self._on_cards_added,
+            on_study=self._show_study,
+            on_key_change=self._handle_key_save,
+        )
         self._switch(screen)
 
     def _show_deck(self) -> None:

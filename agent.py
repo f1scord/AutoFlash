@@ -1,10 +1,7 @@
 import json
-import os
-import re
 import requests
 from deck import FlashCard
 from exceptions import ApiError
-from parser import read_chunks
 
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
@@ -17,21 +14,17 @@ PROMPT_TEMPLATE = (
 
 
 class CardGenerator:
-    def __init__(self):
-        self.api_key = os.environ.get("DEEPSEEK_API_KEY", "")
-        self.offline = os.environ.get("AUTOFLASH_OFFLINE", "").lower() == "true"
+    def __init__(self, api_key: str = ""):
+        self.api_key = api_key
 
     def generate(self, text: str, source_file: str) -> list:
-        if self.offline or not self.api_key:
-            return self._offline_generate(text, source_file)
+        if not self.api_key:
+            raise ApiError("No API key configured. Please enter your DeepSeek API key in Settings.")
 
+        from parser import read_chunks
         all_cards = []
         for chunk in read_chunks(text):
-            try:
-                cards = self._call_api(chunk, source_file)
-                all_cards.extend(cards)
-            except (ApiError, Exception):
-                all_cards.extend(self._offline_generate(chunk, source_file))
+            all_cards.extend(self._call_api(chunk, source_file))
         return all_cards
 
     def _call_api(self, text: str, source_file: str) -> list:
@@ -67,53 +60,3 @@ class CardGenerator:
             for item in items
             if "front" in item and "back" in item
         ]
-
-    def _offline_generate(self, text: str, source_file: str) -> list:
-        sentences = re.split(r"(?<=[.!?])\s+", text)
-        cards = []
-        for sentence in sentences:
-            sentence = sentence.strip()
-            if len(sentence) < 20:
-                continue
-            card = self._sentence_to_card(sentence, source_file)
-            if card:
-                cards.append(card)
-        return cards[:12]
-
-    @staticmethod
-    def _sentence_to_card(sentence: str, source_file: str):
-        # "X is/are Y"  →  "What is X?"
-        m = re.match(
-            r"^(?:A|An|The)\s+([^,\.]{2,40}?)\s+(is|are|was|were)\s+(.+)"
-            r"|^([A-Z][^,\.]{2,40}?)\s+(is|are|was|were)\s+(.+)",
-            sentence, re.IGNORECASE,
-        )
-        if m:
-            if m.group(1):
-                subject, verb, rest = m.group(1).strip(), m.group(2), m.group(3).strip()
-            else:
-                subject, verb, rest = m.group(4).strip(), m.group(5), m.group(6).strip()
-            rest = re.sub(r"\.$", "", rest)
-            return FlashCard(
-                front=f"What {verb} {subject}?",
-                back=rest,
-                topic="General",
-                difficulty="medium",
-                source_file=source_file,
-            )
-        # "X means/refers to/defined as Y"
-        m2 = re.match(
-            r"^([A-Z][^,\.]{2,40}?)\s+(means|refers to|defined as|stands for)\s+(.+)",
-            sentence, re.IGNORECASE,
-        )
-        if m2:
-            subject, _, rest = m2.group(1).strip(), m2.group(2), m2.group(3).strip()
-            rest = re.sub(r"\.$", "", rest)
-            return FlashCard(
-                front=f"What does {subject} mean?",
-                back=rest,
-                topic="General",
-                difficulty="medium",
-                source_file=source_file,
-            )
-        return None
