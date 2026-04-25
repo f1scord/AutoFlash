@@ -2,6 +2,7 @@ import json
 import re
 import uuid
 from datetime import datetime
+from decorators import log_action
 from exceptions import CardNotFoundError, StorageError
 
 
@@ -103,6 +104,7 @@ class Deck:
             "by_topic": by_topic,
         }
 
+    @log_action
     def save(self, path: str) -> None:
         try:
             import os

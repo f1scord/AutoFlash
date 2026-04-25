@@ -1,7 +1,8 @@
 import queue
 import threading
 import tkinter as tk
-from tkinter import filedialog, ttk
+from datetime import datetime
+from tkinter import filedialog, messagebox, ttk
 
 from agent import CardGenerator
 from deck import FlashCard
@@ -87,6 +88,103 @@ class ApiKeyDialog(tk.Toplevel):
         self.destroy()
 
 
+class AddCardDialog(tk.Toplevel):
+    _DECK_PATH = "data/deck.json"
+
+    def __init__(self, master, deck, on_saved=None):
+        super().__init__(master)
+        self.title("Add card")
+        self.configure(bg=BG)
+        self.resizable(False, False)
+        self.grab_set()
+        self._deck = deck
+        self._on_saved = on_saved
+        self._build()
+        self.transient(master)
+        self.wait_visibility()
+        self.focus_force()
+
+    def _build(self) -> None:
+        tk.Label(self, text="Add card", bg=BG, fg=ACCENT,
+                 font=(FONT, 15, "bold")).pack(padx=18, pady=(16, 10))
+
+        body = tk.Frame(self, bg=BG)
+        body.pack(padx=18, pady=(0, 6), fill="x")
+
+        tk.Label(body, text="Front", bg=BG, fg=MUTED,
+                 font=(FONT, 10)).pack(anchor="w")
+        self._front = tk.Entry(body, bg=SURFACE, fg=TEXT, insertbackground=TEXT,
+                               font=(FONT, 11), relief="flat", bd=0,
+                               highlightthickness=1, highlightbackground=BORDER,
+                               highlightcolor=ACCENT)
+        self._front.pack(fill="x", ipady=5, pady=(0, 8))
+
+        tk.Label(body, text="Back", bg=BG, fg=MUTED,
+                 font=(FONT, 10)).pack(anchor="w")
+        self._back = tk.Entry(body, bg=SURFACE, fg=TEXT, insertbackground=TEXT,
+                              font=(FONT, 11), relief="flat", bd=0,
+                              highlightthickness=1, highlightbackground=BORDER,
+                              highlightcolor=ACCENT)
+        self._back.pack(fill="x", ipady=5, pady=(0, 8))
+
+        tk.Label(body, text="Topic", bg=BG, fg=MUTED,
+                 font=(FONT, 10)).pack(anchor="w")
+        self._topic = tk.Entry(body, bg=SURFACE, fg=TEXT, insertbackground=TEXT,
+                               font=(FONT, 11), relief="flat", bd=0,
+                               highlightthickness=1, highlightbackground=BORDER,
+                               highlightcolor=ACCENT)
+        self._topic.pack(fill="x", ipady=5)
+
+        row = tk.Frame(self, bg=BG)
+        row.pack(pady=(12, 16))
+        cancel = tk.Button(row, text="Cancel", command=self.destroy)
+        _btn(cancel)
+        cancel.pack(side="left", padx=6)
+        save = tk.Button(row, text="Save", command=self._save)
+        _btn(save, primary=True)
+        save.pack(side="left", padx=6)
+
+        self._front.bind("<Return>", lambda _: self._save())
+        self._back.bind("<Return>", lambda _: self._save())
+        self._topic.bind("<Return>", lambda _: self._save())
+
+    def _save(self) -> None:
+        front = self._front.get().strip()
+        back = self._back.get().strip()
+        topic = self._topic.get().strip()
+        if not self._has_required_fields(front, back):
+            messagebox.showwarning("Missing fields", "Front and Back are required.")
+            return
+
+        # keep manual card creation explicit so it's easy to explain in defense
+        card = self._build_manual_card(front=front, back=back, topic=topic)
+
+        self._deck.add(card)
+        self._deck.save(self._DECK_PATH)
+        self.destroy()
+        if self._on_saved:
+            self._on_saved()
+
+    @staticmethod
+    def _has_required_fields(front: str, back: str) -> bool:
+        return bool(front and back)
+
+    @staticmethod
+    def _build_manual_card(front: str, back: str, topic: str) -> FlashCard:
+        card = FlashCard(
+            front=front,
+            back=back,
+            topic=topic,
+            difficulty="medium",
+            source_file="manual",
+        )
+        card.status = "new"
+        card.times_reviewed = 0
+        card.correct_answers = 0
+        card.created_at = datetime.now().isoformat(timespec="seconds")
+        return card
+
+
 class GenerateScreen(tk.Frame):
     def __init__(self, master, api_key, on_cards_added, on_study, on_key_change):
         super().__init__(master, bg=BG)
@@ -155,6 +253,7 @@ class GenerateScreen(tk.Frame):
             text="Key saved ✓" if key else "Key cleared", fg=GREEN if key else RED)
 
     @handle_errors
+    @log_action
     def _open_file(self) -> None:
         path = filedialog.askopenfilename(
             title="Open lecture file",
@@ -166,6 +265,7 @@ class GenerateScreen(tk.Frame):
         pq: queue.Queue = queue.Queue()
 
         def worker():
+            # parse in a background thread so ui stays responsive
             try:
                 pq.put(("ok", parse_file(path)))
             except Exception as e:
@@ -174,6 +274,7 @@ class GenerateScreen(tk.Frame):
         threading.Thread(target=worker, daemon=True).start()
 
         def poll():
+            # poll queue until worker returns parsed text or error
             try:
                 r, p = pq.get_nowait()
             except queue.Empty:
@@ -264,6 +365,10 @@ class DeckScreen(tk.Frame):
                      highlightcolor=ACCENT)
         e.pack(side="left", fill="x", expand=True, padx=(6, 0), ipady=5)
 
+        add_b = tk.Button(search_row, text="+ Add card", command=self._open_add_dialog)
+        _btn(add_b, primary=True)
+        add_b.pack(side="left", padx=(8, 0))
+
         lf = tk.Frame(self, bg=BG)
         lf.pack(fill="both", expand=True, padx=28, pady=(0, 4))
 
@@ -318,6 +423,9 @@ class DeckScreen(tk.Frame):
         self._sel_id = None
         self.refresh()
 
+    def _open_add_dialog(self) -> None:
+        AddCardDialog(self, deck=self._deck, on_saved=self.refresh)
+
 
 class StudyScreen(tk.Frame):
     def __init__(self, master, deck, on_done):
@@ -345,12 +453,12 @@ class StudyScreen(tk.Frame):
         row.pack(pady=14)
 
         self._forgot_b = tk.Button(row, text="✗  Forgot",
-                                   command=lambda: self._ans(False))
+                                                                     command=self._forgot)
         _btn(self._forgot_b, danger=True)
         self._forgot_b.pack(side="left", padx=10)
 
         self._knew_b = tk.Button(row, text="✓  Knew it",
-                                 command=lambda: self._ans(True))
+                                                                 command=self._knew_it)
         _btn(self._knew_b, primary=True)
         self._knew_b.configure(bg="#1a3828", fg=GREEN,
                                activebackground=GREEN, activeforeground="#000")
@@ -374,9 +482,18 @@ class StudyScreen(tk.Frame):
         self._counter.configure(text=f"{self._idx + 1} / {total}")
         self._prog.set_progress(self._idx / total)
 
+    @handle_errors
+    def _forgot(self) -> None:
+        self._ans(False)
+
+    @handle_errors
+    def _knew_it(self) -> None:
+        self._ans(True)
+
     def _ans(self, knew: bool) -> None:
         if self._idx >= len(self._cards):
             return
+        # one answer updates deck state and moves session forward
         self._deck.mark(self._cards[self._idx].id, knew)
         self._idx += 1
         if self._idx >= len(self._cards):

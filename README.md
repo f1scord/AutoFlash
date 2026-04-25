@@ -1,10 +1,9 @@
 # AutoFlash
 
-Native desktop flashcard app built with Tkinter. Drop in a PDF, DOCX, or TXT lecture — DeepSeek generates study cards. Study them in a windowed UI with smooth flip and slide animations.
+AutoFlash is a native desktop flashcard app on Tkinter.
+You can paste lecture text or open PDF/DOCX/TXT files, generate cards through DeepSeek, and study them in one window.
 
-No Flask. No browser. No npm.
-
-## Install
+## Installation
 
 ```bash
 pip install requests pdfplumber python-docx
@@ -16,54 +15,29 @@ pip install requests pdfplumber python-docx
 python main.py
 ```
 
-Set your API key first:
+## Set API key
 
-```bash
-export DEEPSEEK_API_KEY=your_key   # Linux / macOS
-set DEEPSEEK_API_KEY=your_key      # Windows CMD
-$env:DEEPSEEK_API_KEY="your_key"   # Windows PowerShell
-```
+1. Open GenerateScreen.
+2. Click the `⚙` button.
+3. Paste your DeepSeek API key.
+4. Click `Save`.
 
-## Offline mode
+The key is stored in `data/config.json`.
 
-No key? No WiFi? The app still works with a regex-based fallback generator:
+## No internet or no API key
 
-```bash
-AUTOFLASH_OFFLINE=true python main.py
-```
+Open DeckScreen and use `+ Add card` to add cards manually.
+The app still works for creating and studying cards without generation.
 
-## Supported formats
+## Supported input
 
-- PDF (`.pdf`) via `pdfplumber`
-- Word documents (`.docx`) via `python-docx`
-- Plain text (`.txt`)
+- PDF
+- DOCX
+- TXT
+- Or paste text directly into the GenerateScreen textarea
 
-## How it works
+## UI overview
 
-1. **Generate screen** — paste text directly or open a lecture file. Click Generate.
-2. **Deck screen** — browse, search, and delete cards. Cards persist in `data/deck.json`.
-3. **Study screen** — click a card to flip (horizontal scale animation), then mark Knew it or Forgot. Progress bar at the top. Stats fade in when the session ends.
-
-## File structure
-
-```
-autoflash/
-├── main.py         # entry point
-├── app.py          # App class, window, screen switching
-├── screens.py      # GenerateScreen, DeckScreen, StudyScreen
-├── widgets.py      # FlipCard canvas widget, AnimatedProgress
-├── agent.py        # CardGenerator (DeepSeek + offline fallback)
-├── deck.py         # FlashCard, Deck data classes
-├── parser.py       # PDF / DOCX / TXT readers
-├── storage.py      # JSON load/save helpers
-├── decorators.py   # @log_action, @handle_errors
-├── exceptions.py   # custom exception hierarchy
-└── data/
-    └── deck.json   # auto-created on first save
-```
-
-## Notes
-
-- `data/deck.json` and `logs.txt` are created automatically on first run.
-- All animations run via `widget.after()` — no external animation library.
-- API calls and file parsing happen on background threads so the UI stays responsive.
+- Generate screen: paste text or open a file, then generate cards
+- Deck screen: search, review, delete, and add cards manually
+- Study screen: flip-card animation and animated progress bar

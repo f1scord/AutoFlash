@@ -1,6 +1,4 @@
 import re
-import pdfplumber
-import docx
 from exceptions import FileNotSupportedError
 
 SUPPORTED = {".pdf", ".docx", ".txt"}
@@ -18,6 +16,13 @@ def parse_file(path: str) -> str:
 
 
 def read_pdf(path: str) -> str:
+    try:
+        import pdfplumber
+    except ModuleNotFoundError as e:
+        raise FileNotSupportedError(
+            "PDF support requires 'pdfplumber'. Install dependencies to open .pdf files."
+        ) from e
+
     parts = []
     with pdfplumber.open(path) as pdf:
         for page in pdf.pages:
@@ -27,6 +32,13 @@ def read_pdf(path: str) -> str:
 
 
 def read_docx(path: str) -> str:
+    try:
+        import docx
+    except ModuleNotFoundError as e:
+        raise FileNotSupportedError(
+            "DOCX support requires 'python-docx'. Install dependencies to open .docx files."
+        ) from e
+
     document = docx.Document(path)
     return "\n".join(p.text for p in document.paragraphs if p.text.strip())
 
@@ -34,11 +46,6 @@ def read_docx(path: str) -> str:
 def read_text(path: str) -> str:
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
-
-
-def read_chunks(text: str, size: int = 4000):
-    for i in range(0, len(text), size):
-        yield text[i:i + size]
 
 
 def _ext(path: str) -> str:
