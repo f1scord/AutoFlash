@@ -161,12 +161,33 @@ class GenerateScreen(tk.Frame):
         if not path:
             return
         self._status.configure(text="Parsing file…", fg="#888")
-        self.update_idletasks()
-        text = parse_file(path)
-        self._source_path = path
-        self._text.delete("1.0", "end")
-        self._text.insert("1.0", text)
-        self._status.configure(text=f"Loaded: {path.split('/')[-1]}", fg=ACCENT)
+        self._parse_queue: queue.Queue = queue.Queue()
+
+        def worker():
+            try:
+                text = parse_file(path)
+                self._parse_queue.put(("ok", text))
+            except Exception as e:
+                self._parse_queue.put(("err", str(e)))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+        def poll_parse():
+            try:
+                result, payload = self._parse_queue.get_nowait()
+            except queue.Empty:
+                self.after(100, poll_parse)
+                return
+            if result == "ok":
+                self._source_path = path
+                self._text.delete("1.0", "end")
+                self._text.insert("1.0", payload)
+                name = path.replace("\\", "/").split("/")[-1]
+                self._status.configure(text=f"Loaded: {name}", fg=ACCENT)
+            else:
+                self._status.configure(text=f"Error parsing file: {payload}", fg="#ff6b6b")
+
+        poll_parse()
 
     @handle_errors
     def _generate(self) -> None:
