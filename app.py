@@ -37,7 +37,7 @@ class App:
             ApiKeyDialog(self.root, current_key="", on_save=self._save_key)
 
     def _load_api_key(self) -> str:
-        env = os.environ.get("DEEPSEEK_API_KEY", "")
+        env = os.environ.get("LLM_API_KEY", "") or os.environ.get("API_KEY", "")
         return env if env else load_config().get("api_key", "")
 
     def _save_key(self, key: str) -> None:

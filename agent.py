@@ -1,9 +1,11 @@
 import json
+import os
 import re
 from deck import FlashCard
 from exceptions import ApiError
 
-DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
+DEFAULT_API_URL = "https://api.openai.com/v1/chat/completions"
+DEFAULT_MODEL = "gpt-4o-mini"
 
 PROMPT_TEMPLATE = (
     "You generate study flashcards.\n"
@@ -16,12 +18,14 @@ PROMPT_TEMPLATE = (
 class CardGenerator:
     def __init__(self, api_key: str = ""):
         self.api_key = api_key
+        self.api_url = os.environ.get("LLM_API_URL", DEFAULT_API_URL)
+        self.model = os.environ.get("LLM_MODEL", DEFAULT_MODEL)
 
     MAX_CHARS = 6000
 
     def generate(self, text: str, source_file: str, on_progress=None) -> list:
         if not self.api_key:
-            raise ApiError("No API key set. Click ⚙ to add your DeepSeek key.")
+            raise ApiError("No API key set. Click ⚙ to add your API key.")
         excerpt = text[:self.MAX_CHARS]
         return self._call_api(excerpt, source_file)
 
@@ -36,17 +40,17 @@ class CardGenerator:
             "Content-Type": "application/json",
         }
         payload = {
-            "model": "deepseek-chat",
+            "model": self.model,
             "messages": [{"role": "user", "content": PROMPT_TEMPLATE + text}],
             "temperature": 0.7,
         }
         try:
-            resp = requests.post(DEEPSEEK_URL, headers=headers, json=payload, timeout=60)
+            resp = requests.post(self.api_url, headers=headers, json=payload, timeout=60)
             resp.raise_for_status()
         except requests.Timeout:
-            raise ApiError("DeepSeek timed out (60s). Check your connection.")
+            raise ApiError("API request timed out (60s). Check your connection.")
         except requests.HTTPError as e:
-            raise ApiError(f"DeepSeek API error {e.response.status_code}: {e.response.text[:200]}")
+            raise ApiError(f"API error {e.response.status_code}: {e.response.text[:200]}")
         except requests.RequestException as e:
             raise ApiError(f"Network error: {e}")
 
@@ -56,11 +60,11 @@ class CardGenerator:
         raw = re.sub(r"\s*```$", "", raw).strip()
 
         if not raw:
-            raise ApiError("DeepSeek returned an empty response.")
+            raise ApiError("API returned an empty response.")
         try:
             items = json.loads(raw)
         except json.JSONDecodeError as e:
-            raise ApiError(f"DeepSeek returned invalid JSON: {e}\n\nGot:\n{raw[:300]}")
+            raise ApiError(f"API returned invalid JSON: {e}\n\nGot:\n{raw[:300]}")
 
         return [
             FlashCard(

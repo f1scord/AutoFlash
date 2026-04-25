@@ -40,7 +40,7 @@ def _btn(btn: tk.Button, primary: bool = False, danger: bool = False) -> None:
 class ApiKeyDialog(tk.Toplevel):
     def __init__(self, master, current_key: str = "", on_save=None):
         super().__init__(master)
-        self.title("API Key — DeepSeek")
+        self.title("API Key")
         self.configure(bg=BG)
         self.resizable(False, False)
         self.grab_set()
@@ -51,9 +51,9 @@ class ApiKeyDialog(tk.Toplevel):
         self.focus_force()
 
     def _build(self, key: str) -> None:
-        tk.Label(self, text="DeepSeek API Key", bg=BG, fg=ACCENT,
+        tk.Label(self, text="LLM API Key", bg=BG, fg=ACCENT,
                  font=(FONT, 15, "bold")).pack(padx=30, pady=(22, 4))
-        tk.Label(self, text="platform.deepseek.com → API Keys",
+        tk.Label(self, text="paste key from your provider dashboard",
                  bg=BG, fg=MUTED, font=(FONT, 10)).pack(padx=30, pady=(0, 14))
 
         self._entry = tk.Entry(self, width=50, bg=SURFACE, fg=TEXT,
