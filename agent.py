@@ -1,6 +1,5 @@
 import json
 import re
-import requests
 from deck import FlashCard
 from exceptions import ApiError
 
@@ -22,12 +21,16 @@ class CardGenerator:
 
     def generate(self, text: str, source_file: str, on_progress=None) -> list:
         if not self.api_key:
-            raise ApiError("No API key configured. Click ⚙ API Key to set it.")
-
+            raise ApiError("No API key set. Click ⚙ to add your DeepSeek key.")
         excerpt = text[:self.MAX_CHARS]
         return self._call_api(excerpt, source_file)
 
     def _call_api(self, text: str, source_file: str) -> list:
+        try:
+            import requests
+        except ModuleNotFoundError as e:
+            raise ApiError("Package 'requests' is not installed. Use offline mode or install dependencies.") from e
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -70,3 +73,4 @@ class CardGenerator:
             for item in items
             if "front" in item and "back" in item
         ]
+
