@@ -54,7 +54,9 @@ class App:
         screen.pack(fill="both", expand=True)
 
     def _show_generate(self) -> None:
-        screen = GenerateScreen(self.root, on_cards_added=self._on_cards_added)
+        screen = GenerateScreen(self.root,
+                                on_cards_added=self._on_cards_added,
+                                on_study=self._show_study)
         self._switch(screen)
 
     def _show_deck(self) -> None:

@@ -30,11 +30,13 @@ def _style_btn(btn: tk.Button, primary: bool = False) -> None:
 
 
 class GenerateScreen(tk.Frame):
-    def __init__(self, master, on_cards_added):
+    def __init__(self, master, on_cards_added, on_study):
         super().__init__(master, bg=BG)
         self._on_cards_added = on_cards_added
+        self._on_study = on_study
         self._generator = CardGenerator()
         self._queue: queue.Queue = queue.Queue()
+        self._source_path = "pasted text"
         self._build()
 
     def _build(self) -> None:
@@ -62,6 +64,10 @@ class GenerateScreen(tk.Frame):
         self._status = tk.Label(self, text="", bg=BG, fg="#888", font=("Helvetica", 10))
         self._status.pack(pady=6)
 
+        self._study_btn = tk.Button(self, text="Study now  →", command=self._on_study)
+        _style_btn(self._study_btn, primary=True)
+        # hidden until cards are generated
+
     @handle_errors
     def _open_file(self) -> None:
         path = filedialog.askopenfilename(
@@ -73,6 +79,7 @@ class GenerateScreen(tk.Frame):
         self._status.configure(text="Parsing file…", fg="#888")
         self.update_idletasks()
         text = parse_file(path)
+        self._source_path = path
         self._text.delete("1.0", "end")
         self._text.insert("1.0", text)
         self._status.configure(text=f"Loaded: {path.split('/')[-1]}", fg=ACCENT)
@@ -89,9 +96,10 @@ class GenerateScreen(tk.Frame):
 
     @log_action
     def _run_async(self, text: str) -> None:
+        source = self._source_path
         def worker():
             try:
-                cards = self._generator.generate(text, source_file="pasted text")
+                cards = self._generator.generate(text, source_file=source)
                 self._queue.put(("ok", cards))
             except Exception as e:
                 self._queue.put(("err", str(e)))
@@ -107,8 +115,13 @@ class GenerateScreen(tk.Frame):
             return
         if result == "ok":
             self._on_cards_added(payload)
-            self._status.configure(
-                text=f"{len(payload)} cards generated!", fg="#4aff9e")
+            if payload:
+                self._status.configure(
+                    text=f"{len(payload)} cards added to your deck!", fg="#4aff9e")
+                self._study_btn.pack(pady=4)
+            else:
+                self._status.configure(
+                    text="No cards extracted. Try more detailed text.", fg="#ff6b6b")
         else:
             self._status.configure(text=f"Error: {payload}", fg="#ff6b6b")
 
@@ -236,7 +249,7 @@ class StudyScreen(tk.Frame):
                              key=lambda c: c.times_reviewed)
         self._idx = 0
         if not self._cards:
-            self._show_stats()
+            self._show_empty()
             return
         self._show_current()
 
@@ -311,3 +324,21 @@ class StudyScreen(tk.Frame):
         back_btn = tk.Button(self, text="Back to deck", command=self._on_done)
         _style_btn(back_btn, primary=True)
         back_btn.pack(pady=8)
+
+    def _show_empty(self) -> None:
+        for widget in self.winfo_children():
+            widget.pack_forget()
+
+        tk.Label(self, text="No cards to study yet.", bg=BG, fg=ACCENT,
+                 font=("Helvetica", 18, "bold")).pack(pady=(80, 10))
+        tk.Label(self, text="Go to Generate and add some flashcards first.",
+                 bg=BG, fg="#888", font=("Helvetica", 12)).pack()
+
+        all_known = self._deck.stats()["total"] > 0
+        if all_known:
+            tk.Label(self, text="(All cards are marked as Known — great job!)",
+                     bg=BG, fg="#4aff9e", font=("Helvetica", 11)).pack(pady=6)
+
+        back_btn = tk.Button(self, text="Back to deck", command=self._on_done)
+        _style_btn(back_btn, primary=True)
+        back_btn.pack(pady=20)

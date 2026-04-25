@@ -69,21 +69,51 @@ class CardGenerator:
         ]
 
     def _offline_generate(self, text: str, source_file: str) -> list:
-        trigger = re.compile(
-            r"\b(is|are|means|defined as|refers to)\b", re.IGNORECASE
-        )
         sentences = re.split(r"(?<=[.!?])\s+", text)
         cards = []
         for sentence in sentences:
             sentence = sentence.strip()
             if len(sentence) < 20:
                 continue
-            if trigger.search(sentence):
-                cards.append(FlashCard(
-                    front="What does this describe?",
-                    back=sentence,
-                    topic="General",
-                    difficulty="medium",
-                    source_file=source_file,
-                ))
+            card = self._sentence_to_card(sentence, source_file)
+            if card:
+                cards.append(card)
         return cards[:12]
+
+    @staticmethod
+    def _sentence_to_card(sentence: str, source_file: str):
+        # "X is/are Y"  →  "What is X?"
+        m = re.match(
+            r"^(?:A|An|The)\s+([^,\.]{2,40}?)\s+(is|are|was|were)\s+(.+)"
+            r"|^([A-Z][^,\.]{2,40}?)\s+(is|are|was|were)\s+(.+)",
+            sentence, re.IGNORECASE,
+        )
+        if m:
+            if m.group(1):
+                subject, verb, rest = m.group(1).strip(), m.group(2), m.group(3).strip()
+            else:
+                subject, verb, rest = m.group(4).strip(), m.group(5), m.group(6).strip()
+            rest = re.sub(r"\.$", "", rest)
+            return FlashCard(
+                front=f"What {verb} {subject}?",
+                back=rest,
+                topic="General",
+                difficulty="medium",
+                source_file=source_file,
+            )
+        # "X means/refers to/defined as Y"
+        m2 = re.match(
+            r"^([A-Z][^,\.]{2,40}?)\s+(means|refers to|defined as|stands for)\s+(.+)",
+            sentence, re.IGNORECASE,
+        )
+        if m2:
+            subject, _, rest = m2.group(1).strip(), m2.group(2), m2.group(3).strip()
+            rest = re.sub(r"\.$", "", rest)
+            return FlashCard(
+                front=f"What does {subject} mean?",
+                back=rest,
+                topic="General",
+                difficulty="medium",
+                source_file=source_file,
+            )
+        return None
