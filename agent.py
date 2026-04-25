@@ -1,4 +1,5 @@
 import json
+import re
 import requests
 from deck import FlashCard
 from exceptions import ApiError
@@ -44,10 +45,15 @@ class CardGenerator:
             raise ApiError(f"DeepSeek request failed: {e}") from e
 
         content = resp.json()["choices"][0]["message"]["content"].strip()
+        # strip markdown fences the model sometimes adds despite the prompt
+        content = re.sub(r"^```(?:json)?\s*", "", content)
+        content = re.sub(r"\s*```$", "", content).strip()
+        if not content:
+            raise ApiError("DeepSeek returned an empty response.")
         try:
             items = json.loads(content)
         except json.JSONDecodeError as e:
-            raise ApiError(f"DeepSeek returned invalid JSON: {e}") from e
+            raise ApiError(f"DeepSeek returned invalid JSON: {e}\n\nRaw response:\n{content[:300]}") from e
 
         return [
             FlashCard(
