@@ -18,13 +18,16 @@ class CardGenerator:
     def __init__(self, api_key: str = ""):
         self.api_key = api_key
 
-    def generate(self, text: str, source_file: str) -> list:
+    def generate(self, text: str, source_file: str, on_progress=None) -> list:
         if not self.api_key:
-            raise ApiError("No API key configured. Please enter your DeepSeek API key in Settings.")
+            raise ApiError("No API key configured. Click ⚙ API Key to set it.")
 
         from parser import read_chunks
+        chunks = list(read_chunks(text))
         all_cards = []
-        for chunk in read_chunks(text):
+        for i, chunk in enumerate(chunks):
+            if on_progress:
+                on_progress(f"Chunk {i + 1} / {len(chunks)}…")
             all_cards.extend(self._call_api(chunk, source_file))
         return all_cards
 
@@ -39,21 +42,26 @@ class CardGenerator:
             "temperature": 0.7,
         }
         try:
-            resp = requests.post(DEEPSEEK_URL, headers=headers, json=payload, timeout=30)
+            resp = requests.post(DEEPSEEK_URL, headers=headers, json=payload, timeout=60)
             resp.raise_for_status()
+        except requests.Timeout:
+            raise ApiError("DeepSeek timed out (60s). Check your connection.")
+        except requests.HTTPError as e:
+            raise ApiError(f"DeepSeek API error {e.response.status_code}: {e.response.text[:200]}")
         except requests.RequestException as e:
-            raise ApiError(f"DeepSeek request failed: {e}") from e
+            raise ApiError(f"Network error: {e}")
 
-        content = resp.json()["choices"][0]["message"]["content"].strip()
-        # strip markdown fences the model sometimes adds despite the prompt
-        content = re.sub(r"^```(?:json)?\s*", "", content)
-        content = re.sub(r"\s*```$", "", content).strip()
-        if not content:
+        raw = resp.json()["choices"][0]["message"]["content"].strip()
+        # strip markdown fences the model sometimes adds
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw).strip()
+
+        if not raw:
             raise ApiError("DeepSeek returned an empty response.")
         try:
-            items = json.loads(content)
+            items = json.loads(raw)
         except json.JSONDecodeError as e:
-            raise ApiError(f"DeepSeek returned invalid JSON: {e}\n\nRaw response:\n{content[:300]}") from e
+            raise ApiError(f"DeepSeek returned invalid JSON: {e}\n\nGot:\n{raw[:300]}")
 
         return [
             FlashCard(

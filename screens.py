@@ -185,23 +185,36 @@ class GenerateScreen(tk.Frame):
     def _run_async(self, text: str) -> None:
         source = self._source_path
 
+        def on_progress(msg: str) -> None:
+            self._queue.put(("progress", msg))
+
         def worker():
             try:
-                cards = self._generator.generate(text, source_file=source)
+                cards = self._generator.generate(text, source_file=source,
+                                                  on_progress=on_progress)
                 self._queue.put(("ok", cards))
             except Exception as e:
                 self._queue.put(("err", str(e)))
 
         threading.Thread(target=worker, daemon=True).start()
+        self._poll_start = __import__("time").monotonic()
         self._poll()
 
     def _poll(self) -> None:
+        import time
         try:
             result, payload = self._queue.get_nowait()
         except queue.Empty:
-            self.after(100, self._poll)
+            elapsed = int(time.monotonic() - self._poll_start)
+            self._status.configure(
+                text=f"Generating… {elapsed}s", fg="#ffd700")
+            self.after(200, self._poll)
             return
-        if result == "ok":
+
+        if result == "progress":
+            self._status.configure(text=f"Generating… {payload}", fg="#ffd700")
+            self.after(200, self._poll)
+        elif result == "ok":
             self._on_cards_added(payload)
             if payload:
                 self._status.configure(
