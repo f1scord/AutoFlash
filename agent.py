@@ -18,18 +18,14 @@ class CardGenerator:
     def __init__(self, api_key: str = ""):
         self.api_key = api_key
 
+    MAX_CHARS = 6000
+
     def generate(self, text: str, source_file: str, on_progress=None) -> list:
         if not self.api_key:
             raise ApiError("No API key configured. Click ⚙ API Key to set it.")
 
-        from parser import read_chunks
-        chunks = list(read_chunks(text))
-        all_cards = []
-        for i, chunk in enumerate(chunks):
-            if on_progress:
-                on_progress(f"Chunk {i + 1} / {len(chunks)}…")
-            all_cards.extend(self._call_api(chunk, source_file))
-        return all_cards
+        excerpt = text[:self.MAX_CHARS]
+        return self._call_api(excerpt, source_file)
 
     def _call_api(self, text: str, source_file: str) -> list:
         headers = {

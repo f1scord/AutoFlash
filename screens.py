@@ -206,13 +206,9 @@ class GenerateScreen(tk.Frame):
     def _run_async(self, text: str) -> None:
         source = self._source_path
 
-        def on_progress(msg: str) -> None:
-            self._queue.put(("progress", msg))
-
         def worker():
             try:
-                cards = self._generator.generate(text, source_file=source,
-                                                  on_progress=on_progress)
+                cards = self._generator.generate(text, source_file=source)
                 self._queue.put(("ok", cards))
             except Exception as e:
                 self._queue.put(("err", str(e)))
