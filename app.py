@@ -89,7 +89,7 @@ class App:
             self._switch(s)
             self._set_active("Generate")
         except Exception:
-            messagebox.showerror("Ошибка", traceback.format_exc())
+            messagebox.showerror("Error", traceback.format_exc())
 
     def _show_deck(self) -> None:
         try:
@@ -97,7 +97,7 @@ class App:
             self._switch(s)
             self._set_active("Deck")
         except Exception:
-            messagebox.showerror("Ошибка", traceback.format_exc())
+            messagebox.showerror("Error", traceback.format_exc())
 
     def _show_study(self) -> None:
         try:
@@ -106,7 +106,7 @@ class App:
             self._set_active("Study")
             s.start()
         except Exception:
-            messagebox.showerror("Ошибка", traceback.format_exc())
+            messagebox.showerror("Error", traceback.format_exc())
 
     def _cards_added(self, cards: list) -> None:
         for c in cards:

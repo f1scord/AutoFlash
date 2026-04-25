@@ -89,7 +89,7 @@ class FlipCard(tk.Canvas):
             self.create_rectangle(x0, y0, x1, y1, fill=bg, outline=border, width=2)
 
         if scale_x > 0.2:
-            label = "ВОПРОС" if self._showing_front else "ОТВЕТ"
+            label = "QUESTION" if self._showing_front else "ANSWER"
             lc = self.LABEL_FRONT if self._showing_front else self.LABEL_BACK
             self.create_text(cx, y0 + 22, text=label, fill=lc,
                              font=(FONT, 9, "bold"))

@@ -102,7 +102,7 @@ class GenerateScreen(tk.Frame):
     def _build(self) -> None:
         tk.Label(self, text="AutoFlash ⚡", bg=BG, fg=ACCENT,
                  font=(FONT, 24, "bold")).pack(pady=(24, 2))
-        tk.Label(self, text="Вставь текст лекции или открой файл",
+        tk.Label(self, text="Paste lecture text or open a file",
                  bg=BG, fg=MUTED, font=(FONT, 11)).pack(pady=(0, 12))
 
         self._text = tk.Text(self, height=13, bg=SURFACE, fg=TEXT,
@@ -117,11 +117,11 @@ class GenerateScreen(tk.Frame):
         row = tk.Frame(self, bg=BG)
         row.pack()
 
-        open_b = tk.Button(row, text="📂  Открыть файл", command=self._open_file)
+        open_b = tk.Button(row, text="📂  Open lecture…", command=self._open_file)
         _btn(open_b)
         open_b.pack(side="left", padx=5)
 
-        gen_b = tk.Button(row, text="⚡  Сгенерировать", command=self._generate)
+        gen_b = tk.Button(row, text="⚡  Generate", command=self._generate)
         _btn(gen_b, primary=True)
         gen_b.pack(side="left", padx=5)
 
@@ -134,13 +134,13 @@ class GenerateScreen(tk.Frame):
                                 font=(FONT, 10))
         self._status.pack(pady=8)
 
-        self._study_btn = tk.Button(self, text="Учить карточки  →",
+        self._study_btn = tk.Button(self, text="Study cards  →",
                                     command=self._on_study)
         _btn(self._study_btn, primary=True)
 
         if not self._generator.api_key:
             self._status.configure(
-                text="API ключ не задан — нажми ⚙", fg=YELLOW)
+                text="No API key — click ⚙", fg=YELLOW)
 
     def set_api_key(self, key: str) -> None:
         self._generator.api_key = key
@@ -152,17 +152,17 @@ class GenerateScreen(tk.Frame):
         self._generator.api_key = key
         self._on_key_change(key)
         self._status.configure(
-            text="Ключ сохранён ✓" if key else "Ключ удалён", fg=GREEN if key else RED)
+            text="Key saved ✓" if key else "Key cleared", fg=GREEN if key else RED)
 
     @handle_errors
     def _open_file(self) -> None:
         path = filedialog.askopenfilename(
-            title="Открыть файл лекции",
-            filetypes=[("Файлы лекций", "*.pdf *.docx *.txt"), ("Все файлы", "*.*")],
+            title="Open lecture file",
+            filetypes=[("Lecture files", "*.pdf *.docx *.txt"), ("All files", "*.*")],
         )
         if not path:
             return
-        self._status.configure(text="Парсинг файла…", fg=MUTED)
+        self._status.configure(text="Parsing file…", fg=MUTED)
         pq: queue.Queue = queue.Queue()
 
         def worker():
@@ -186,7 +186,7 @@ class GenerateScreen(tk.Frame):
                 name = path.replace("\\", "/").split("/")[-1]
                 self._status.configure(text=f"✓  {name}", fg=GREEN)
             else:
-                self._status.configure(text=f"Ошибка: {p}", fg=RED)
+                self._status.configure(text=f"Error: {p}", fg=RED)
 
         poll()
 
@@ -197,9 +197,9 @@ class GenerateScreen(tk.Frame):
             return
         text = self._text.get("1.0", "end").strip()
         if not text:
-            self._status.configure(text="Сначала вставь текст или открой файл", fg=YELLOW)
+            self._status.configure(text="Paste or open a lecture first.", fg=YELLOW)
             return
-        self._status.configure(text="Генерация…  0s", fg=YELLOW)
+        self._status.configure(text="Generating…  0s", fg=YELLOW)
         self.update_idletasks()
         self._run(text)
 
@@ -224,18 +224,18 @@ class GenerateScreen(tk.Frame):
             r, p = self._q.get_nowait()
         except queue.Empty:
             s = int(time.monotonic() - self._poll_start)
-            self._status.configure(text=f"Генерация…  {s}s", fg=YELLOW)
+            self._status.configure(text=f"Generating…  {s}s", fg=YELLOW)
             self.after(200, self._poll)
             return
         if r == "ok":
             self._on_cards_added(p)
             if p:
-                self._status.configure(text=f"✓  {len(p)} карточек добавлено!", fg=GREEN)
+                self._status.configure(text=f"✓  {len(p)} cards added!", fg=GREEN)
                 self._study_btn.pack(pady=4)
             else:
-                self._status.configure(text="Карточки не получены. Попробуй другой текст.", fg=RED)
+                self._status.configure(text="No cards returned. Try different text.", fg=RED)
         else:
-            self._status.configure(text=f"Ошибка: {p}", fg=RED)
+            self._status.configure(text=f"Error: {p}", fg=RED)
 
 
 class DeckScreen(tk.Frame):
@@ -247,7 +247,7 @@ class DeckScreen(tk.Frame):
         self._build()
 
     def _build(self) -> None:
-        tk.Label(self, text="Колода", bg=BG, fg=ACCENT,
+        tk.Label(self, text="Deck", bg=BG, fg=ACCENT,
                  font=(FONT, 20, "bold")).pack(pady=(18, 10))
 
         search_row = tk.Frame(self, bg=BG)
@@ -281,7 +281,7 @@ class DeckScreen(tk.Frame):
         bot = tk.Frame(self, bg=BG)
         bot.pack(fill="x", padx=28, pady=8)
 
-        del_b = tk.Button(bot, text="🗑  Удалить", command=self._delete)
+        del_b = tk.Button(bot, text="🗑  Delete", command=self._delete)
         _btn(del_b, danger=True)
         del_b.pack(side="left")
 
@@ -303,7 +303,7 @@ class DeckScreen(tk.Frame):
             self._lb.insert("end", f"  {icon}  {front}")
         st = self._deck.stats()
         self._info.configure(
-            text=f"Всего: {st['total']}  •  Знаю: {st['known']}  •  {st['accuracy']}%")
+            text=f"Total: {st['total']}  •  Known: {st['known']}  •  {st['accuracy']}%")
 
     def _sel(self, _) -> None:
         s = self._lb.curselection()
@@ -338,18 +338,18 @@ class StudyScreen(tk.Frame):
         self._card = FlipCard(self, width=540, height=300)
         self._card.pack(pady=(10, 4))
 
-        tk.Label(self, text="Нажми на карточку чтобы перевернуть  •  пробел",
+        tk.Label(self, text="Click card to flip  •  Space",
                  bg=BG, fg="#3a3a55", font=(FONT, 9)).pack()
 
         row = tk.Frame(self, bg=BG)
         row.pack(pady=14)
 
-        self._forgot_b = tk.Button(row, text="✗  Не знал",
+        self._forgot_b = tk.Button(row, text="✗  Forgot",
                                    command=lambda: self._ans(False))
         _btn(self._forgot_b, danger=True)
         self._forgot_b.pack(side="left", padx=10)
 
-        self._knew_b = tk.Button(row, text="✓  Знал",
+        self._knew_b = tk.Button(row, text="✓  Knew it",
                                  command=lambda: self._ans(True))
         _btn(self._knew_b, primary=True)
         self._knew_b.configure(bg="#1a3828", fg=GREEN,
@@ -388,14 +388,14 @@ class StudyScreen(tk.Frame):
     def _empty(self) -> None:
         for w in self.winfo_children():
             w.pack_forget()
-        tk.Label(self, text="Нечего учить", bg=BG, fg=ACCENT,
+        tk.Label(self, text="Nothing to study", bg=BG, fg=ACCENT,
                  font=(FONT, 20, "bold")).pack(pady=(80, 8))
-        tk.Label(self, text="Сначала сгенерируй карточки на экране Generate",
+        tk.Label(self, text="Go to Generate and add flashcards first.",
                  bg=BG, fg=MUTED, font=(FONT, 12)).pack()
         if self._deck.stats()["total"] > 0:
-            tk.Label(self, text="Все карточки уже изучены — так держать!",
+            tk.Label(self, text="All cards already known — great job!",
                      bg=BG, fg=GREEN, font=(FONT, 11)).pack(pady=6)
-        b = tk.Button(self, text="Назад", command=self._on_done)
+        b = tk.Button(self, text="Back", command=self._on_done)
         _btn(b, primary=True)
         b.pack(pady=20)
 
@@ -409,13 +409,13 @@ class StudyScreen(tk.Frame):
         outer = tk.Frame(self, bg=BG)
         outer.pack(expand=True, fill="both", padx=60, pady=30)
 
-        tk.Label(outer, text="Сессия завершена!", bg=BG, fg=ACCENT,
+        tk.Label(outer, text="Session complete!", bg=BG, fg=ACCENT,
                  font=(FONT, 22, "bold")).pack(pady=(20, 16))
 
         rows = [
-            (f"{len(self._cards)}", "карточек изучено"),
-            (f"{st['known']}", "помечено «Знал»"),
-            (f"{acc}%", "точность"),
+            (f"{len(self._cards)}", "cards studied"),
+            (f"{st['known']}", "marked Known"),
+            (f"{acc}%", "accuracy"),
         ]
         for val, lbl in rows:
             f = tk.Frame(outer, bg=SURFACE, padx=20, pady=12)
@@ -431,6 +431,6 @@ class StudyScreen(tk.Frame):
             tk.Label(outer, text=by, bg=BG, fg=MUTED, font=(FONT, 9),
                      wraplength=480, justify="center").pack(pady=8)
 
-        b = tk.Button(outer, text="Назад к колоде", command=self._on_done)
+        b = tk.Button(outer, text="Back to deck", command=self._on_done)
         _btn(b, primary=True)
         b.pack(pady=12)
