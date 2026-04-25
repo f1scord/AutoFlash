@@ -1,118 +1,142 @@
 import tkinter as tk
 
+FONT = "Segoe UI"
+
+
+def _ease(t: float) -> float:
+    return t * t * (3 - 2 * t)  # smoothstep
+
 
 class FlipCard(tk.Canvas):
-    FRONT_BG = "#1e2a3a"
-    BACK_BG = "#1a3a2a"
-    TEXT_COLOR = "#e8e8e8"
-    BORDER_COLOR = "#3a4a5a"
+    FRONT_BG = "#1e2048"
+    FRONT_BORDER = "#4a4aff"
+    BACK_BG = "#1a3828"
+    BACK_BORDER = "#2dba6b"
+    TEXT_COLOR = "#e8e8f4"
+    LABEL_FRONT = "#7b7fff"
+    LABEL_BACK = "#2dba6b"
 
-    def __init__(self, master, width=520, height=300, **kwargs):
+    def __init__(self, master, width=560, height=300, **kwargs):
         super().__init__(master, width=width, height=height,
-                         bg="#0d1117", highlightthickness=0, **kwargs)
-        self._w = width
-        self._h = height
+                         bg="#111118", highlightthickness=0, **kwargs)
+        self._cw = width
+        self._ch = height
         self._card = None
         self._showing_front = True
         self._animating = False
         self.bind("<Button-1>", self._on_click)
+        self.configure(cursor="hand2")
 
     def load(self, card) -> None:
         self._card = card
         self._showing_front = True
         self._animating = False
-        self._redraw(scale_x=1.0)
+        self._redraw(1.0)
 
     def flip(self) -> None:
         if self._animating or self._card is None:
             return
         self._animating = True
-        self._animate_scale(1.0, 0.0, 12, on_done=self._swap_and_expand)
+        self._animate(0, going_back=False)
 
-    def _swap_and_expand(self) -> None:
-        self._showing_front = not self._showing_front
-        self._animate_scale(0.0, 1.0, 12, on_done=self._done_animating)
-
-    def _done_animating(self) -> None:
-        self._animating = False
-
-    def _animate_scale(self, start: float, end: float, steps: int, on_done) -> None:
-        delta = (end - start) / steps
-
-        def step(i: int, value: float) -> None:
-            self._redraw(scale_x=max(0.0, value))
-            if i < steps:
-                self.after(20, step, i + 1, value + delta)
+    def _animate(self, step: int, going_back: bool) -> None:
+        steps = 10
+        if not going_back:
+            t = _ease(step / steps)
+            scale = 1.0 - t
+            self._redraw(scale)
+            if step < steps:
+                self.after(18, self._animate, step + 1, False)
             else:
-                on_done()
-
-        step(0, start)
+                self._showing_front = not self._showing_front
+                self._animate(0, going_back=True)
+        else:
+            t = _ease(step / steps)
+            scale = t
+            self._redraw(scale)
+            if step < steps:
+                self.after(18, self._animate, step + 1, True)
+            else:
+                self._animating = False
 
     def _redraw(self, scale_x: float = 1.0) -> None:
         self.delete("all")
         if self._card is None:
             return
 
-        cx = self._w / 2
-        card_w = int(self._w * 0.9 * scale_x)
-        card_h = int(self._h * 0.88)
-        x0 = cx - card_w // 2
-        x1 = cx + card_w // 2
-        y0 = int(self._h * 0.06)
-        y1 = y0 + card_h
+        cx = self._cw // 2
+        cw = max(2, int(self._cw * 0.92 * scale_x))
+        ch = int(self._ch * 0.90)
+        x0 = cx - cw // 2
+        x1 = cx + cw // 2
+        y0 = int(self._ch * 0.05)
+        y1 = y0 + ch
+        r = 12  # corner radius
 
         bg = self.FRONT_BG if self._showing_front else self.BACK_BG
-        self.create_rectangle(x0, y0, x1, y1, fill=bg, outline=self.BORDER_COLOR,
-                               width=2, tags="card")
+        border = self.FRONT_BORDER if self._showing_front else self.BACK_BORDER
 
-        if scale_x > 0.15:
-            label = "QUESTION" if self._showing_front else "ANSWER"
-            label_color = "#4a9eff" if self._showing_front else "#4aff9e"
-            self.create_text(cx, y0 + 18, text=label, fill=label_color,
-                             font=("Helvetica", 9, "bold"))
+        # rounded rect via polygon approximation
+        if cw > r * 2:
+            pts = [
+                x0 + r, y0,  x1 - r, y0,
+                x1, y0 + r,  x1, y1 - r,
+                x1 - r, y1,  x0 + r, y1,
+                x0, y1 - r,  x0, y0 + r,
+            ]
+            self.create_polygon(pts, fill=bg, outline=border, width=2, smooth=True)
+        else:
+            self.create_rectangle(x0, y0, x1, y1, fill=bg, outline=border, width=2)
+
+        if scale_x > 0.2:
+            label = "ВОПРОС" if self._showing_front else "ОТВЕТ"
+            lc = self.LABEL_FRONT if self._showing_front else self.LABEL_BACK
+            self.create_text(cx, y0 + 22, text=label, fill=lc,
+                             font=(FONT, 9, "bold"))
 
             text = self._card.front if self._showing_front else self._card.back
-            wrap = max(1, int((card_w - 40) / (scale_x if scale_x > 0.3 else 0.3)))
-            self.create_text(cx, (y0 + y1) // 2, text=text, fill=self.TEXT_COLOR,
-                             font=("Helvetica", 13), width=wrap, justify="center")
+            wrap = max(40, int((cw - 60) / max(0.3, scale_x)))
+            self.create_text(cx, (y0 + y1) // 2 + 6, text=text,
+                             fill=self.TEXT_COLOR,
+                             font=(FONT, 13), width=wrap, justify="center")
 
             diff = self._card.difficulty
-            diff_colors = {"easy": "#4aff9e", "medium": "#ffd700", "hard": "#ff6b6b"}
-            self.create_text(x1 - 8, y1 - 10, text=diff.upper(),
-                             fill=diff_colors.get(diff, "#aaa"),
-                             font=("Helvetica", 8, "bold"), anchor="se")
+            colors = {"easy": "#4ade80", "medium": "#facc15", "hard": "#f87171"}
+            self.create_text(x1 - 10, y1 - 12, text=diff.upper(),
+                             fill=colors.get(diff, "#aaa"),
+                             font=(FONT, 8, "bold"), anchor="se")
 
-    def _on_click(self, _event) -> None:
+    def _on_click(self, _) -> None:
         self.flip()
 
 
 class AnimatedProgress(tk.Canvas):
-    def __init__(self, master, width=500, height=12, **kwargs):
+    def __init__(self, master, width=540, height=5, **kwargs):
         super().__init__(master, width=width, height=height,
-                         bg="#0d1117", highlightthickness=0, **kwargs)
-        self._w = width
-        self._h = height
+                         bg="#111118", highlightthickness=0, **kwargs)
+        self._cw = width
+        self._ch = height
         self._current = 0.0
         self._target = 0.0
         self._draw(0.0)
 
     def set_progress(self, value: float) -> None:
         self._target = max(0.0, min(1.0, value))
-        self._animate()
+        self._step()
 
-    def _animate(self) -> None:
+    def _step(self) -> None:
         diff = self._target - self._current
-        if abs(diff) < 0.005:
+        if abs(diff) < 0.004:
             self._current = self._target
             self._draw(self._current)
             return
-        self._current += diff * 0.25
+        self._current += diff * 0.22
         self._draw(self._current)
-        self.after(16, self._animate)
+        self.after(14, self._step)
 
     def _draw(self, value: float) -> None:
         self.delete("all")
-        self.create_rectangle(0, 0, self._w, self._h, fill="#1e2a3a", outline="")
-        bar_w = int(self._w * value)
-        if bar_w > 0:
-            self.create_rectangle(0, 0, bar_w, self._h, fill="#4a9eff", outline="")
+        self.create_rectangle(0, 0, self._cw, self._ch, fill="#252535", outline="")
+        w = int(self._cw * value)
+        if w > 0:
+            self.create_rectangle(0, 0, w, self._ch, fill="#7b7fff", outline="")

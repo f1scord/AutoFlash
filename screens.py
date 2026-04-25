@@ -1,193 +1,194 @@
 import queue
 import threading
 import tkinter as tk
-from tkinter import filedialog, simpledialog, ttk
+from tkinter import filedialog, ttk
 
 from agent import CardGenerator
+from deck import FlashCard
 from decorators import handle_errors, log_action
 from parser import parse_file
-from widgets import AnimatedProgress, FlipCard
+from widgets import AnimatedProgress, FlipCard, FONT
 
 
-BG = "#0d1117"
-FG = "#e8e8e8"
-ACCENT = "#4a9eff"
-BTN_BG = "#1e2a3a"
-ENTRY_BG = "#161b22"
+BG      = "#111118"
+SURFACE = "#1c1c28"
+CARD_S  = "#252535"
+BORDER  = "#38384f"
+ACCENT  = "#7b7fff"
+TEXT    = "#e6e6f0"
+MUTED   = "#6a6a8a"
+GREEN   = "#4ade80"
+RED     = "#f87171"
+YELLOW  = "#facc15"
+ENTRY   = "#1c1c28"
 
 
-def _style_btn(btn: tk.Button, primary: bool = False) -> None:
-    btn.configure(
-        bg=ACCENT if primary else BTN_BG,
-        fg="#000" if primary else FG,
-        relief="flat",
-        padx=14, pady=6,
-        cursor="hand2",
-        font=("Helvetica", 11, "bold" if primary else "normal"),
-        activebackground=ACCENT,
-        activeforeground="#000",
-    )
+def _btn(btn: tk.Button, primary: bool = False, danger: bool = False) -> None:
+    if primary:
+        bg, fg, abg = ACCENT, "#fff", "#9999ff"
+    elif danger:
+        bg, fg, abg = "#3a1a1a", RED, RED
+    else:
+        bg, fg, abg = SURFACE, TEXT, ACCENT
+    btn.configure(bg=bg, fg=fg, activebackground=abg, activeforeground="#fff",
+                  relief="flat", padx=16, pady=8, cursor="hand2",
+                  font=(FONT, 10, "bold" if primary else "normal"),
+                  bd=0, highlightthickness=0)
 
 
 class ApiKeyDialog(tk.Toplevel):
-    """Modal dialog for entering / changing the DeepSeek API key."""
-
     def __init__(self, master, current_key: str = "", on_save=None):
         super().__init__(master)
-        self.title("API Key")
+        self.title("API Key — DeepSeek")
         self.configure(bg=BG)
         self.resizable(False, False)
-        self.grab_set()  # modal
+        self.grab_set()
         self._on_save = on_save
         self._build(current_key)
         self.transient(master)
         self.wait_visibility()
         self.focus_force()
 
-    def _build(self, current_key: str) -> None:
-        pad = {"padx": 24, "pady": 8}
-
+    def _build(self, key: str) -> None:
         tk.Label(self, text="DeepSeek API Key", bg=BG, fg=ACCENT,
-                 font=("Helvetica", 14, "bold")).pack(**pad)
-        tk.Label(self,
-                 text="Get your key at platform.deepseek.com → API Keys",
-                 bg=BG, fg="#888", font=("Helvetica", 10)).pack(padx=24, pady=(0, 8))
+                 font=(FONT, 15, "bold")).pack(padx=30, pady=(22, 4))
+        tk.Label(self, text="platform.deepseek.com → API Keys",
+                 bg=BG, fg=MUTED, font=(FONT, 10)).pack(padx=30, pady=(0, 14))
 
-        self._entry = tk.Entry(self, width=52, bg=ENTRY_BG, fg=FG,
-                               insertbackground=FG, font=("Helvetica", 11),
-                               relief="flat", show="•")
-        self._entry.pack(padx=24, pady=4)
-        self._entry.insert(0, current_key)
+        self._entry = tk.Entry(self, width=50, bg=SURFACE, fg=TEXT,
+                               insertbackground=TEXT, font=(FONT, 11),
+                               relief="flat", show="•", bd=0,
+                               highlightthickness=1, highlightcolor=ACCENT,
+                               highlightbackground=BORDER)
+        self._entry.pack(padx=30, ipady=7)
+        self._entry.insert(0, key)
 
-        show_var = tk.BooleanVar(value=False)
-
-        def _toggle():
-            self._entry.configure(show="" if show_var.get() else "•")
-
-        tk.Checkbutton(self, text="Show key", variable=show_var, command=_toggle,
-                       bg=BG, fg="#888", selectcolor=BG,
-                       activebackground=BG, font=("Helvetica", 10)).pack(padx=24, anchor="w")
+        show = tk.BooleanVar(value=False)
+        tk.Checkbutton(self, text="Show key", variable=show, bg=BG, fg=MUTED,
+                       selectcolor=SURFACE, activebackground=BG,
+                       font=(FONT, 10),
+                       command=lambda: self._entry.configure(
+                           show="" if show.get() else "•")).pack(
+            padx=30, pady=6, anchor="w")
 
         row = tk.Frame(self, bg=BG)
-        row.pack(pady=12)
-
-        cancel_btn = tk.Button(row, text="Cancel", command=self.destroy)
-        _style_btn(cancel_btn)
-        cancel_btn.pack(side="left", padx=6)
-
-        save_btn = tk.Button(row, text="Save", command=self._save)
-        _style_btn(save_btn, primary=True)
-        save_btn.pack(side="left", padx=6)
-
+        row.pack(pady=(6, 22))
+        cancel = tk.Button(row, text="Cancel", command=self.destroy)
+        _btn(cancel)
+        cancel.pack(side="left", padx=6)
+        save = tk.Button(row, text="Save", command=self._save)
+        _btn(save, primary=True)
+        save.pack(side="left", padx=6)
         self._entry.bind("<Return>", lambda _: self._save())
 
     def _save(self) -> None:
-        key = self._entry.get().strip()
         if self._on_save:
-            self._on_save(key)
+            self._on_save(self._entry.get().strip())
         self.destroy()
 
 
 class GenerateScreen(tk.Frame):
-    def __init__(self, master, api_key: str, on_cards_added, on_study, on_key_change):
+    def __init__(self, master, api_key, on_cards_added, on_study, on_key_change):
         super().__init__(master, bg=BG)
         self._on_cards_added = on_cards_added
         self._on_study = on_study
         self._on_key_change = on_key_change
         self._generator = CardGenerator(api_key)
-        self._queue: queue.Queue = queue.Queue()
-        self._source_path = "pasted text"
+        self._q: queue.Queue = queue.Queue()
+        self._source = "pasted text"
+        self._poll_start = 0.0
         self._build()
 
     def _build(self) -> None:
-        tk.Label(self, text="AutoFlash", bg=BG, fg=ACCENT,
-                 font=("Helvetica", 22, "bold")).pack(pady=(24, 4))
-        tk.Label(self, text="Paste lecture text or open a file to generate flashcards",
-                 bg=BG, fg="#888", font=("Helvetica", 11)).pack(pady=(0, 14))
+        tk.Label(self, text="AutoFlash ⚡", bg=BG, fg=ACCENT,
+                 font=(FONT, 24, "bold")).pack(pady=(24, 2))
+        tk.Label(self, text="Вставь текст лекции или открой файл",
+                 bg=BG, fg=MUTED, font=(FONT, 11)).pack(pady=(0, 12))
 
-        self._text = tk.Text(self, height=13, bg=ENTRY_BG, fg=FG, insertbackground=FG,
-                             font=("Helvetica", 11), relief="flat", padx=10, pady=8,
-                             wrap="word")
-        self._text.pack(fill="x", padx=30, pady=(0, 10))
+        self._text = tk.Text(self, height=13, bg=SURFACE, fg=TEXT,
+                             insertbackground=TEXT, font=(FONT, 11),
+                             relief="flat", padx=12, pady=10,
+                             wrap="word", bd=0,
+                             highlightthickness=1,
+                             highlightbackground=BORDER,
+                             highlightcolor=ACCENT)
+        self._text.pack(fill="x", padx=28, pady=(0, 12))
 
         row = tk.Frame(self, bg=BG)
-        row.pack(pady=4)
+        row.pack()
 
-        open_btn = tk.Button(row, text="Open lecture…", command=self._open_file)
-        _style_btn(open_btn)
-        open_btn.pack(side="left", padx=6)
+        open_b = tk.Button(row, text="📂  Открыть файл", command=self._open_file)
+        _btn(open_b)
+        open_b.pack(side="left", padx=5)
 
-        gen_btn = tk.Button(row, text="Generate  ⚡", command=self._generate)
-        _style_btn(gen_btn, primary=True)
-        gen_btn.pack(side="left", padx=6)
+        gen_b = tk.Button(row, text="⚡  Сгенерировать", command=self._generate)
+        _btn(gen_b, primary=True)
+        gen_b.pack(side="left", padx=5)
 
-        key_btn = tk.Button(row, text="⚙ API Key", command=self._open_key_dialog)
-        _style_btn(key_btn)
-        key_btn.pack(side="left", padx=6)
+        key_b = tk.Button(row, text="⚙", command=self._open_key_dialog,
+                          width=3)
+        _btn(key_b)
+        key_b.pack(side="left", padx=5)
 
-        self._status = tk.Label(self, text="", bg=BG, fg="#888", font=("Helvetica", 10))
-        self._status.pack(pady=6)
+        self._status = tk.Label(self, text="", bg=BG, fg=MUTED,
+                                font=(FONT, 10))
+        self._status.pack(pady=8)
 
-        self._study_btn = tk.Button(self, text="Study now  →", command=self._on_study)
-        _style_btn(self._study_btn, primary=True)
-        # hidden until cards are generated
+        self._study_btn = tk.Button(self, text="Учить карточки  →",
+                                    command=self._on_study)
+        _btn(self._study_btn, primary=True)
 
         if not self._generator.api_key:
             self._status.configure(
-                text="No API key set. Click ⚙ API Key to configure.",
-                fg="#ff6b6b")
+                text="API ключ не задан — нажми ⚙", fg=YELLOW)
 
     def set_api_key(self, key: str) -> None:
         self._generator.api_key = key
 
     def _open_key_dialog(self) -> None:
-        ApiKeyDialog(self, current_key=self._generator.api_key,
-                     on_save=self._handle_key_save)
+        ApiKeyDialog(self, self._generator.api_key, on_save=self._key_saved)
 
-    def _handle_key_save(self, key: str) -> None:
+    def _key_saved(self, key: str) -> None:
         self._generator.api_key = key
         self._on_key_change(key)
-        if key:
-            self._status.configure(text="API key saved.", fg="#4aff9e")
-        else:
-            self._status.configure(text="API key cleared.", fg="#ff6b6b")
+        self._status.configure(
+            text="Ключ сохранён ✓" if key else "Ключ удалён", fg=GREEN if key else RED)
 
     @handle_errors
     def _open_file(self) -> None:
         path = filedialog.askopenfilename(
-            title="Open lecture file",
-            filetypes=[("Lecture files", "*.pdf *.docx *.txt"), ("All files", "*.*")],
+            title="Открыть файл лекции",
+            filetypes=[("Файлы лекций", "*.pdf *.docx *.txt"), ("Все файлы", "*.*")],
         )
         if not path:
             return
-        self._status.configure(text="Parsing file…", fg="#888")
-        self._parse_queue: queue.Queue = queue.Queue()
+        self._status.configure(text="Парсинг файла…", fg=MUTED)
+        pq: queue.Queue = queue.Queue()
 
         def worker():
             try:
-                text = parse_file(path)
-                self._parse_queue.put(("ok", text))
+                pq.put(("ok", parse_file(path)))
             except Exception as e:
-                self._parse_queue.put(("err", str(e)))
+                pq.put(("err", str(e)))
 
         threading.Thread(target=worker, daemon=True).start()
 
-        def poll_parse():
+        def poll():
             try:
-                result, payload = self._parse_queue.get_nowait()
+                r, p = pq.get_nowait()
             except queue.Empty:
-                self.after(100, poll_parse)
+                self.after(80, poll)
                 return
-            if result == "ok":
-                self._source_path = path
+            if r == "ok":
+                self._source = path
                 self._text.delete("1.0", "end")
-                self._text.insert("1.0", payload)
+                self._text.insert("1.0", p)
                 name = path.replace("\\", "/").split("/")[-1]
-                self._status.configure(text=f"Loaded: {name}", fg=ACCENT)
+                self._status.configure(text=f"✓  {name}", fg=GREEN)
             else:
-                self._status.configure(text=f"Error parsing file: {payload}", fg="#ff6b6b")
+                self._status.configure(text=f"Ошибка: {p}", fg=RED)
 
-        poll_parse()
+        poll()
 
     @handle_errors
     def _generate(self) -> None:
@@ -196,52 +197,45 @@ class GenerateScreen(tk.Frame):
             return
         text = self._text.get("1.0", "end").strip()
         if not text:
-            self._status.configure(text="Paste or open a lecture first.", fg="#ff6b6b")
+            self._status.configure(text="Сначала вставь текст или открой файл", fg=YELLOW)
             return
-        self._status.configure(text="Generating… (this may take a moment)", fg="#ffd700")
+        self._status.configure(text="Генерация…  0s", fg=YELLOW)
         self.update_idletasks()
-        self._run_async(text)
+        self._run(text)
 
     @log_action
-    def _run_async(self, text: str) -> None:
-        source = self._source_path
+    def _run(self, text: str) -> None:
+        src = self._source
 
         def worker():
             try:
-                cards = self._generator.generate(text, source_file=source)
-                self._queue.put(("ok", cards))
+                self._q.put(("ok", self._generator.generate(text, src)))
             except Exception as e:
-                self._queue.put(("err", str(e)))
+                self._q.put(("err", str(e)))
 
         threading.Thread(target=worker, daemon=True).start()
-        self._poll_start = __import__("time").monotonic()
+        import time
+        self._poll_start = time.monotonic()
         self._poll()
 
     def _poll(self) -> None:
         import time
         try:
-            result, payload = self._queue.get_nowait()
+            r, p = self._q.get_nowait()
         except queue.Empty:
-            elapsed = int(time.monotonic() - self._poll_start)
-            self._status.configure(
-                text=f"Generating… {elapsed}s", fg="#ffd700")
+            s = int(time.monotonic() - self._poll_start)
+            self._status.configure(text=f"Генерация…  {s}s", fg=YELLOW)
             self.after(200, self._poll)
             return
-
-        if result == "progress":
-            self._status.configure(text=f"Generating… {payload}", fg="#ffd700")
-            self.after(200, self._poll)
-        elif result == "ok":
-            self._on_cards_added(payload)
-            if payload:
-                self._status.configure(
-                    text=f"{len(payload)} cards added to your deck!", fg="#4aff9e")
+        if r == "ok":
+            self._on_cards_added(p)
+            if p:
+                self._status.configure(text=f"✓  {len(p)} карточек добавлено!", fg=GREEN)
                 self._study_btn.pack(pady=4)
             else:
-                self._status.configure(
-                    text="No cards extracted. Try more detailed text.", fg="#ff6b6b")
+                self._status.configure(text="Карточки не получены. Попробуй другой текст.", fg=RED)
         else:
-            self._status.configure(text=f"Error: {payload}", fg="#ff6b6b")
+            self._status.configure(text=f"Ошибка: {p}", fg=RED)
 
 
 class DeckScreen(tk.Frame):
@@ -249,73 +243,79 @@ class DeckScreen(tk.Frame):
         super().__init__(master, bg=BG)
         self._deck = deck
         self._on_delete = on_delete
-        self._selected_id = None
+        self._sel_id = None
         self._build()
 
     def _build(self) -> None:
-        tk.Label(self, text="Deck", bg=BG, fg=ACCENT,
-                 font=("Helvetica", 20, "bold")).pack(pady=(18, 6))
+        tk.Label(self, text="Колода", bg=BG, fg=ACCENT,
+                 font=(FONT, 20, "bold")).pack(pady=(18, 10))
 
         search_row = tk.Frame(self, bg=BG)
-        search_row.pack(fill="x", padx=30, pady=(0, 8))
-        tk.Label(search_row, text="Search:", bg=BG, fg=FG,
-                 font=("Helvetica", 11)).pack(side="left")
-        self._search_var = tk.StringVar()
-        self._search_var.trace_add("write", lambda *_: self.refresh())
-        entry = tk.Entry(search_row, textvariable=self._search_var,
-                         bg=ENTRY_BG, fg=FG, insertbackground=FG,
-                         font=("Helvetica", 11), relief="flat")
-        entry.pack(side="left", fill="x", expand=True, padx=(8, 0))
+        search_row.pack(fill="x", padx=28, pady=(0, 8))
 
-        list_frame = tk.Frame(self, bg=BG)
-        list_frame.pack(fill="both", expand=True, padx=30)
+        tk.Label(search_row, text="🔍", bg=BG, fg=MUTED,
+                 font=(FONT, 12)).pack(side="left")
+        self._sv = tk.StringVar()
+        self._sv.trace_add("write", lambda *_: self.refresh())
+        e = tk.Entry(search_row, textvariable=self._sv,
+                     bg=SURFACE, fg=TEXT, insertbackground=TEXT,
+                     font=(FONT, 11), relief="flat", bd=0,
+                     highlightthickness=1, highlightbackground=BORDER,
+                     highlightcolor=ACCENT)
+        e.pack(side="left", fill="x", expand=True, padx=(6, 0), ipady=5)
 
-        scrollbar = ttk.Scrollbar(list_frame, orient="vertical")
-        scrollbar.pack(side="right", fill="y")
+        lf = tk.Frame(self, bg=BG)
+        lf.pack(fill="both", expand=True, padx=28, pady=(0, 4))
 
-        self._listbox = tk.Listbox(
-            list_frame, bg=ENTRY_BG, fg=FG, selectbackground=ACCENT,
-            selectforeground="#000", font=("Helvetica", 11),
-            relief="flat", yscrollcommand=scrollbar.set, activestyle="none",
-        )
-        self._listbox.pack(fill="both", expand=True)
-        scrollbar.configure(command=self._listbox.yview)
-        self._listbox.bind("<<ListboxSelect>>", self._on_select)
+        sb = ttk.Scrollbar(lf, orient="vertical")
+        sb.pack(side="right", fill="y")
 
-        del_btn = tk.Button(self, text="Delete selected", command=self._delete)
-        _style_btn(del_btn)
-        del_btn.pack(pady=10)
+        self._lb = tk.Listbox(lf, bg=SURFACE, fg=TEXT, selectbackground=ACCENT,
+                              selectforeground="#fff", font=(FONT, 11),
+                              relief="flat", bd=0, yscrollcommand=sb.set,
+                              activestyle="none", highlightthickness=0)
+        self._lb.pack(fill="both", expand=True)
+        sb.configure(command=self._lb.yview)
+        self._lb.bind("<<ListboxSelect>>", self._sel)
 
-        self._info = tk.Label(self, text="", bg=BG, fg="#888", font=("Helvetica", 10))
-        self._info.pack()
+        bot = tk.Frame(self, bg=BG)
+        bot.pack(fill="x", padx=28, pady=8)
+
+        del_b = tk.Button(bot, text="🗑  Удалить", command=self._delete)
+        _btn(del_b, danger=True)
+        del_b.pack(side="left")
+
+        self._info = tk.Label(bot, text="", bg=BG, fg=MUTED, font=(FONT, 10))
+        self._info.pack(side="right")
 
         self._ids = []
         self.refresh()
 
     def refresh(self) -> None:
-        query = self._search_var.get().strip()
-        cards = self._deck.search(query) if query else list(self._deck.cards.values())
+        q = self._sv.get().strip()
+        cards = self._deck.search(q) if q else list(self._deck.cards.values())
         self._ids = [c.id for c in cards]
-        self._listbox.delete(0, "end")
-        for card in cards:
-            label = f"[{card.difficulty}] {card.front[:60]}{'…' if len(card.front) > 60 else ''}"
-            self._listbox.insert("end", label)
-        stats = self._deck.stats()
+        self._lb.delete(0, "end")
+        diff_icons = {"easy": "🟢", "medium": "🟡", "hard": "🔴"}
+        for c in cards:
+            icon = diff_icons.get(c.difficulty, "⚪")
+            front = c.front[:58] + ("…" if len(c.front) > 58 else "")
+            self._lb.insert("end", f"  {icon}  {front}")
+        st = self._deck.stats()
         self._info.configure(
-            text=f"Total: {stats['total']}  |  Known: {stats['known']}  "
-                 f"|  Accuracy: {stats['accuracy']}%")
+            text=f"Всего: {st['total']}  •  Знаю: {st['known']}  •  {st['accuracy']}%")
 
-    def _on_select(self, _event) -> None:
-        sel = self._listbox.curselection()
-        self._selected_id = self._ids[sel[0]] if sel else None
+    def _sel(self, _) -> None:
+        s = self._lb.curselection()
+        self._sel_id = self._ids[s[0]] if s else None
 
     @handle_errors
     def _delete(self) -> None:
-        if not self._selected_id:
+        if not self._sel_id:
             return
-        self._deck.remove(self._selected_id)
+        self._deck.remove(self._sel_id)
         self._on_delete()
-        self._selected_id = None
+        self._sel_id = None
         self.refresh()
 
 
@@ -329,130 +329,108 @@ class StudyScreen(tk.Frame):
         self._build()
 
     def _build(self) -> None:
-        self._progress = AnimatedProgress(self, width=560)
-        self._progress.pack(pady=(18, 4))
+        self._prog = AnimatedProgress(self, width=540, height=5)
+        self._prog.pack(pady=(16, 2))
 
-        self._counter = tk.Label(self, text="", bg=BG, fg="#888",
-                                 font=("Helvetica", 10))
+        self._counter = tk.Label(self, text="", bg=BG, fg=MUTED, font=(FONT, 10))
         self._counter.pack()
 
-        self._flip_card = FlipCard(self, width=560, height=320)
-        self._flip_card.pack(pady=14)
+        self._card = FlipCard(self, width=540, height=300)
+        self._card.pack(pady=(10, 4))
 
-        hint = tk.Label(self, text="Click card to flip  •  keyboard: Space",
-                        bg=BG, fg="#555", font=("Helvetica", 9))
-        hint.pack()
+        tk.Label(self, text="Нажми на карточку чтобы перевернуть  •  пробел",
+                 bg=BG, fg="#3a3a55", font=(FONT, 9)).pack()
 
-        btn_row = tk.Frame(self, bg=BG)
-        btn_row.pack(pady=12)
+        row = tk.Frame(self, bg=BG)
+        row.pack(pady=14)
 
-        forgot_btn = tk.Button(btn_row, text="✗  Forgot",
-                               command=lambda: self._answer(False))
-        _style_btn(forgot_btn)
-        forgot_btn.configure(bg="#3a1a1a", fg="#ff6b6b",
-                              activebackground="#ff6b6b", activeforeground="#000")
-        forgot_btn.pack(side="left", padx=10)
+        self._forgot_b = tk.Button(row, text="✗  Не знал",
+                                   command=lambda: self._ans(False))
+        _btn(self._forgot_b, danger=True)
+        self._forgot_b.pack(side="left", padx=10)
 
-        knew_btn = tk.Button(btn_row, text="✓  Knew it",
-                             command=lambda: self._answer(True))
-        _style_btn(knew_btn, primary=True)
-        knew_btn.configure(bg="#1a3a1a", fg="#4aff9e",
-                           activebackground="#4aff9e", activeforeground="#000")
-        knew_btn.pack(side="left", padx=10)
+        self._knew_b = tk.Button(row, text="✓  Знал",
+                                 command=lambda: self._ans(True))
+        _btn(self._knew_b, primary=True)
+        self._knew_b.configure(bg="#1a3828", fg=GREEN,
+                               activebackground=GREEN, activeforeground="#000")
+        self._knew_b.pack(side="left", padx=10)
 
-        self.bind_all("<space>", lambda _: self._flip_card.flip())
+        self.bind_all("<space>", lambda _: self._card.flip())
 
     def start(self) -> None:
         self._cards = sorted(list(self._deck.due_cards()),
                              key=lambda c: c.times_reviewed)
         self._idx = 0
         if not self._cards:
-            self._show_empty()
+            self._empty()
             return
-        self._show_current()
+        self._show()
 
-    def _show_current(self) -> None:
-        card = self._cards[self._idx]
-        self._flip_card.load(card)
+    def _show(self) -> None:
+        c = self._cards[self._idx]
+        self._card.load(c)
         total = len(self._cards)
         self._counter.configure(text=f"{self._idx + 1} / {total}")
-        self._progress.set_progress(self._idx / total)
+        self._prog.set_progress(self._idx / total)
 
-    def _answer(self, knew_it: bool) -> None:
+    def _ans(self, knew: bool) -> None:
         if self._idx >= len(self._cards):
             return
-        card = self._cards[self._idx]
-        self._deck.mark(card.id, knew_it)
+        self._deck.mark(self._cards[self._idx].id, knew)
         self._idx += 1
         if self._idx >= len(self._cards):
-            self._progress.set_progress(1.0)
-            self.after(300, self._show_stats)
+            self._prog.set_progress(1.0)
+            self.after(350, self._stats)
         else:
-            self._show_current()
+            self._show()
 
-    def _show_empty(self) -> None:
-        for widget in self.winfo_children():
-            widget.pack_forget()
-
-        tk.Label(self, text="No cards to study yet.", bg=BG, fg=ACCENT,
-                 font=("Helvetica", 18, "bold")).pack(pady=(80, 10))
-        tk.Label(self, text="Go to Generate and add some flashcards first.",
-                 bg=BG, fg="#888", font=("Helvetica", 12)).pack()
-
+    def _empty(self) -> None:
+        for w in self.winfo_children():
+            w.pack_forget()
+        tk.Label(self, text="Нечего учить", bg=BG, fg=ACCENT,
+                 font=(FONT, 20, "bold")).pack(pady=(80, 8))
+        tk.Label(self, text="Сначала сгенерируй карточки на экране Generate",
+                 bg=BG, fg=MUTED, font=(FONT, 12)).pack()
         if self._deck.stats()["total"] > 0:
-            tk.Label(self, text="(All cards are marked as Known — great job!)",
-                     bg=BG, fg="#4aff9e", font=("Helvetica", 11)).pack(pady=6)
+            tk.Label(self, text="Все карточки уже изучены — так держать!",
+                     bg=BG, fg=GREEN, font=(FONT, 11)).pack(pady=6)
+        b = tk.Button(self, text="Назад", command=self._on_done)
+        _btn(b, primary=True)
+        b.pack(pady=20)
 
-        back_btn = tk.Button(self, text="Back to deck", command=self._on_done)
-        _style_btn(back_btn, primary=True)
-        back_btn.pack(pady=20)
+    def _stats(self) -> None:
+        for w in self.winfo_children():
+            w.pack_forget()
 
-    def _show_stats(self) -> None:
-        for widget in self.winfo_children():
-            widget.pack_forget()
+        st = self._deck.stats()
+        acc = st["accuracy"]
 
-        canvas = tk.Canvas(self, bg=BG, highlightthickness=0, width=560, height=340)
-        canvas.pack(pady=20)
+        outer = tk.Frame(self, bg=BG)
+        outer.pack(expand=True, fill="both", padx=60, pady=30)
 
-        stats = self._deck.stats()
-        lines = [
-            ("Session complete!", "#4a9eff", 22, "bold"),
-            (f"Cards studied: {len(self._cards)}", FG, 14, "normal"),
-            (f"Known: {stats['known']}  |  Review: {stats['review']}", "#4aff9e", 13, "normal"),
-            (f"Overall accuracy: {stats['accuracy']}%", "#ffd700", 16, "bold"),
+        tk.Label(outer, text="Сессия завершена!", bg=BG, fg=ACCENT,
+                 font=(FONT, 22, "bold")).pack(pady=(20, 16))
+
+        rows = [
+            (f"{len(self._cards)}", "карточек изучено"),
+            (f"{st['known']}", "помечено «Знал»"),
+            (f"{acc}%", "точность"),
         ]
-        target_fills = [l[1] for l in lines]
+        for val, lbl in rows:
+            f = tk.Frame(outer, bg=SURFACE, padx=20, pady=12)
+            f.pack(fill="x", pady=4)
+            tk.Label(f, text=val, bg=SURFACE,
+                     fg=GREEN if "%" not in val or acc >= 50 else RED,
+                     font=(FONT, 20, "bold")).pack(side="left")
+            tk.Label(f, text=f"  {lbl}", bg=SURFACE, fg=MUTED,
+                     font=(FONT, 12)).pack(side="left", anchor="s", pady=4)
 
-        items = []
-        for i, (text, color, size, weight) in enumerate(lines):
-            item = canvas.create_text(
-                280, 60 + i * 60, text=text, fill="#0d1117",
-                font=("Helvetica", size, weight), justify="center")
-            items.append(item)
+        by = "  •  ".join(f"{t}: {n}" for t, n in st["by_topic"].items())
+        if by:
+            tk.Label(outer, text=by, bg=BG, fg=MUTED, font=(FONT, 9),
+                     wraplength=480, justify="center").pack(pady=8)
 
-        def fade(step: int) -> None:
-            t = min(1.0, step / 20)
-            for idx2, item in enumerate(items):
-                r0, g0, b0 = 0x0d, 0x11, 0x17
-                tr = int(target_fills[idx2][1:3], 16)
-                tg = int(target_fills[idx2][3:5], 16)
-                tb = int(target_fills[idx2][5:7], 16)
-                r = int(r0 + (tr - r0) * t)
-                g = int(g0 + (tg - g0) * t)
-                b = int(b0 + (tb - b0) * t)
-                canvas.itemconfigure(item, fill=f"#{r:02x}{g:02x}{b:02x}")
-            if step < 20:
-                self.after(30, fade, step + 1)
-
-        fade(0)
-
-        by_topic_text = "  •  ".join(
-            f"{topic}: {count}" for topic, count in stats["by_topic"].items()
-        )
-        if by_topic_text:
-            canvas.create_text(280, 300, text=by_topic_text, fill="#555",
-                                font=("Helvetica", 10), width=520, justify="center")
-
-        back_btn = tk.Button(self, text="Back to deck", command=self._on_done)
-        _style_btn(back_btn, primary=True)
-        back_btn.pack(pady=8)
+        b = tk.Button(outer, text="Назад к колоде", command=self._on_done)
+        _btn(b, primary=True)
+        b.pack(pady=12)
