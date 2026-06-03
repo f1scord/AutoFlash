@@ -1,5 +1,4 @@
 # storage module — handles config and deck persistence
-# uses file handling with context manager (3 pts) and json serialization (2 pts)
 
 import json
 import os

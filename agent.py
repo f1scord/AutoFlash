@@ -1,5 +1,4 @@
 # agent module — talks to the ai api to generate flashcards
-# uses json serialization (2 pts) and requests for http
 
 import json
 import os
@@ -14,10 +13,12 @@ DEFAULT_MODEL = "openai/gpt-4o-mini"
 
 # prompt template telling the ai exactly what format we want
 PROMPT = (
-    "you generate study flashcards from lecture material.\n"
-    "return ONLY a json array. no extra text. no markdown fences.\n"
-    'each item must have: {"front": str, "back": str, "topic": str, "difficulty": "easy"|"medium"|"hard"}\n'
-    "generate 8-12 cards from this text:\n"
+    "You generate study flashcards from lecture material.\n"
+    "Return ONLY a json object. No extra text. No markdown fences.\n"
+    "Shape:\n"
+    '{"topic": "<short 1-3 word title of the material>",\n'
+    ' "cards": [{"front": str, "back": str, "difficulty": "easy"|"medium"|"hard"}]}\n'
+    "Generate 8-12 cards from this text:\n"
 )
 
 
@@ -47,7 +48,7 @@ class CardGenerator:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://localhost",
-            "X-Title": "Flashcards AI",
+            "X-Title": "QuizMaster",
         }
         payload = {
             "model": self.model,
@@ -79,11 +80,19 @@ class CardGenerator:
             raise ApiError("API returned empty response.")
 
         try:
-            items = json.loads(raw)
+            data = json.loads(raw)
         except json.JSONDecodeError as e:
             raise ApiError(f"API returned bad JSON: {e}\n\n{raw[:300]}")
 
-        # build flashcard objects from the parsed json
+        # the model may return either {"topic":..., "cards":[...]} or a bare list
+        if isinstance(data, dict):
+            topic = str(data.get("topic", "general")).strip() or "general"
+            items = data.get("cards", [])
+        else:
+            topic = "general"
+            items = data
+
+        # build flashcard objects from the parsed json, all under one topic folder
         cards = []
         for item in items:
             if "front" in item and "back" in item:
@@ -91,7 +100,7 @@ class CardGenerator:
                     FlashCard(
                         front=item["front"],
                         back=item["back"],
-                        topic=item.get("topic", "general"),
+                        topic=item.get("topic", topic),
                         difficulty=item.get("difficulty", "medium"),
                     )
                 )

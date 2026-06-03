@@ -1,5 +1,4 @@
 # deck module — stores flashcards and handles saving/loading
-# uses classes (3 pts), collections (2 pts), comprehensions (2 pts)
 
 import json
 import re
@@ -91,10 +90,17 @@ class Deck:
 
     def due_cards(self):
         # generator — yields cards that are not fully known yet
-        # this is a generator function (2 pts)
         for card in self.cards.values():
             if card.status != "known":
                 yield card
+
+    def topics(self) -> list[str]:
+        # unique topic names, sorted alphabetically
+        return sorted({c.topic for c in self.cards.values()})
+
+    def cards_in_topic(self, topic: str) -> list[FlashCard]:
+        # all cards filed under one topic folder
+        return [c for c in self.cards.values() if c.topic == topic]
 
     def mark(self, card_id: str, knew_it: bool) -> None:
         # update card status after review
@@ -107,25 +113,6 @@ class Deck:
             card.status = "known"
         else:
             card.status = "review"
-
-    def stats(self) -> dict:
-        # simple stats about the deck
-        total = len(self.cards)
-        known = sum(1 for c in self.cards.values() if c.status == "known")
-        review = sum(1 for c in self.cards.values() if c.status == "review")
-        new_cards = sum(1 for c in self.cards.values() if c.status == "new")
-        # dict comprehension for topic counts
-        by_topic = {
-            t: sum(1 for c in self.cards.values() if c.topic == t)
-            for t in {c.topic for c in self.cards.values()}
-        }
-        return {
-            "total": total,
-            "known": known,
-            "review": review,
-            "new": new_cards,
-            "by_topic": by_topic,
-        }
 
     @log_action
     def save(self, path: str) -> None:

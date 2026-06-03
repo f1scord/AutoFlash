@@ -1,12 +1,19 @@
-# app module — main application with navigation
+# app module - main application with navigation
 # ties everything together: generate, deck, study
 
 import os
+import tkinter
 
 import customtkinter as ctk
 
 from deck import Deck
-from screens import ApiKeyDialog, DeckScreen, GenerateScreen, StudyScreen
+from screens import (
+    ApiKeyDialog,
+    DeckScreen,
+    GenerateScreen,
+    StudyPickerScreen,
+    StudyScreen,
+)
 from storage import load_config, load_deck, save_config, save_deck
 
 # ── theme setup ───────────────────────────────────────────────
@@ -19,9 +26,7 @@ SURFACE = "#111111"
 CARD = "#181818"
 BORDER = "#252525"
 MINT = "#3dd68c"
-MINT_HOVER = "#2db46d"
-TEXT = "#f0f0f0"
-MUTED = "#666666"
+MUTED = "#8a8a8a"
 FONT = "Segoe UI"
 NAV_H = 44
 
@@ -32,17 +37,17 @@ class App:
     def __init__(self):
         # create main window
         self.root = ctk.CTk()
-        self.root.title("Flashcards AI")
-        self.root.geometry("620x460")
-        self.root.minsize(500, 380)
+        self.root.title("QuizMaster")
+        self.root.geometry("560x480")
+        self.root.minsize(480, 400)
+        self.root.maxsize(760, 1100)
         self.root.configure(fg_color=BG)
         self.root.resizable(True, True)
+        self._set_icon()
 
         # load data
         self.deck: Deck = load_deck()
-        self._cfg = load_config()
         self._api_key = self._load_api_key()
-        self._api_url = self._cfg.get("api_url", "")
         self._current_screen = None
         self._nav_btns: dict = {}
 
@@ -51,17 +56,39 @@ class App:
         self._frame = ctk.CTkFrame(self.root, fg_color=BG, corner_radius=0)
         self._frame.pack(fill="both", expand=True)
 
-        # show generate screen first
-        self._show_generate()
+        # decks screen is the landing page
+        self._show_deck()
 
         # prompt for api key if missing
         if not self._api_key:
             ApiKeyDialog(
                 self.root,
                 current_key="",
-                current_url=self._api_url,
                 on_save=self._save_key,
             )
+
+    # ── window icon ───────────────────────────────────────────
+
+    def _set_icon(self) -> None:
+        """draw a small mint-diamond app icon in memory — no external file needed"""
+        try:
+            size = 64
+            icon = tkinter.PhotoImage(width=size, height=size)
+            center = size / 2
+            radius = size * 0.42
+            rows = []
+            for y in range(size):
+                # a pixel is "inside" the diamond by manhattan distance from center
+                row = [
+                    MINT if abs(x - center) + abs(y - center) <= radius else BG
+                    for x in range(size)
+                ]
+                rows.append("{" + " ".join(row) + "}")
+            icon.put(" ".join(rows))
+            self._icon = icon  # keep a reference so it isn't garbage-collected
+            self.root.iconphoto(True, icon)
+        except Exception:
+            pass  # icon is cosmetic — never let it block startup
 
     # ── api key handling ──────────────────────────────────────
 
@@ -77,28 +104,26 @@ class App:
         if not os.path.isfile(env_path):
             return
         with open(env_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, val = line.partition("=")
-                key, val = key.strip(), val.strip().strip('"').strip("'")
-                if key and key not in os.environ:
-                    os.environ[key] = val
+            # read the file line by line until we hit EOF (empty string)
+            line = f.readline()
+            while line:
+                stripped = line.strip()
+                # only handle real KEY=VALUE lines, skip blanks and comments
+                if stripped and not stripped.startswith("#") and "=" in stripped:
+                    key, _, val = stripped.partition("=")
+                    key, val = key.strip(), val.strip().strip('"').strip("'")
+                    if key and key not in os.environ:
+                        os.environ[key] = val
+                line = f.readline()
 
-    def _save_key(self, key: str, url: str = "") -> None:
+    def _save_key(self, key: str) -> None:
         self._api_key = key
-        self._api_url = url
         cfg = load_config()
         cfg["api_key"] = key
-        if url:
-            cfg["api_url"] = url
         save_config(cfg)
         # update current screen if it needs the key
         if self._current_screen and hasattr(self._current_screen, "set_api_key"):
             self._current_screen.set_api_key(key)
-        if self._current_screen and hasattr(self._current_screen, "set_api_url"):
-            self._current_screen.set_api_url(url)
 
     # ── navigation bar ────────────────────────────────────────
 
@@ -124,11 +149,10 @@ class App:
             height=30,
         ).pack(side="left", padx=(12, 4), pady=6)
 
-        # nav buttons
         for name, cmd in [
-            ("Generate", self._show_generate),
-            ("Deck", self._show_deck),
+            ("Decks", self._show_deck),
             ("Study", self._show_study),
+            ("Generate", self._show_generate),
         ]:
             b = ctk.CTkButton(
                 nav,
@@ -147,17 +171,15 @@ class App:
             self._nav_btns[name] = b
 
     def _set_active(self, name: str) -> None:
-        # highlight active tab
         for n, b in self._nav_btns.items():
             if n == name:
                 b.configure(fg_color=CARD, text_color=MINT, font=(FONT, 11, "bold"))
             else:
                 b.configure(fg_color="transparent", text_color=MUTED, font=(FONT, 11))
 
-    # ── screen switching ────────────────────────────────────────
+    # ── screen switching ──────────────────────────────────────
 
     def navigate(self, screen) -> None:
-        # switch to a new screen
         if self._current_screen is not None:
             self._current_screen.pack_forget()
         self._current_screen = screen
@@ -167,20 +189,52 @@ class App:
         s = GenerateScreen(
             self._frame,
             api_key=self._api_key,
-            api_url=self._api_url,
             on_cards_added=self._cards_added,
             on_key_change=self._save_key,
+            topics=self.deck.topics(),
         )
         self.navigate(s)
         self._set_active("Generate")
 
-    def _show_deck(self) -> None:
-        s = DeckScreen(self._frame, self.deck, on_delete=self._save)
+    def _show_deck(self, open_topic=None) -> None:
+        s = DeckScreen(
+            self._frame,
+            self.deck,
+            on_change=self._save,
+            on_study_topic=self._study_topic,
+        )
+        if open_topic:
+            s._open_topic(open_topic)
         self.navigate(s)
-        self._set_active("Deck")
+        self._set_active("Decks")
+
+    def _study_topic(self, topic: str) -> None:
+        """launch a focused study session for one folder, then return to it"""
+        cards = self.deck.cards_in_topic(topic)
+        due = [c for c in cards if c.status != "known"]
+        study_cards = due if due else cards
+
+        def _done():
+            self._save()
+            self._show_deck(open_topic=topic)
+
+        s = StudyScreen(
+            self._frame,
+            self.deck,
+            cards=study_cards,
+            title=topic,
+            on_done=_done,
+        )
+        self.navigate(s)
+        self._set_active("Decks")
+        s.start()
 
     def _show_study(self) -> None:
-        s = StudyScreen(self._frame, self.deck, on_done=self._show_deck)
+        s = StudyPickerScreen(
+            self._frame,
+            self.deck,
+            on_save=self._save,
+        )
         self.navigate(s)
         self._set_active("Study")
         s.start()
@@ -188,15 +242,13 @@ class App:
     # ── data handling ─────────────────────────────────────────
 
     def _cards_added(self, cards: list) -> None:
-        # add generated cards to deck and save
         for c in cards:
             self.deck.add(c)
         self._save()
+        self._show_deck()
 
     def _save(self) -> None:
-        # persist deck to disk
         save_deck(self.deck)
 
     def run(self) -> None:
-        # start the app
         self.root.mainloop()

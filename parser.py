@@ -1,5 +1,4 @@
 # parser module — reads pdf, docx and txt files
-# uses regex to extract file extension (1 pt)
 
 import re
 

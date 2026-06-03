@@ -1,9 +1,8 @@
 # custom exceptions for the app
-# we need at least one custom exception for the project (2 pts)
 
 
 class FlashcardsError(Exception):
-    """base error for our app"""
+    """base error for app"""
 
     pass
 

@@ -1,0 +1,233 @@
+[
+  {
+    "id": "a1a1a1a1-0001-0001-0001-000000000001",
+    "front": "What is a Python decorator?",
+    "back": "A callable that wraps another function to extend or modify its behaviour without altering the original source code. Applied with the @ syntax above a function definition.",
+    "topic": "Python Basics",
+    "difficulty": "medium",
+    "status": "known",
+    "times_reviewed": 1,
+    "correct_answers": 1,
+    "created_at": "2025-01-10T09:00:00"
+  },
+  {
+    "id": "a1a1a1a1-0001-0001-0001-000000000002",
+    "front": "What does the `yield` keyword do?",
+    "back": "Turns a function into a generator that produces values lazily one at a time, pausing execution between each yield and resuming on the next iteration.",
+    "topic": "Python Basics",
+    "difficulty": "medium",
+    "status": "known",
+    "times_reviewed": 2,
+    "correct_answers": 1,
+    "created_at": "2025-01-10T09:01:00"
+  },
+  {
+    "id": "a1a1a1a1-0001-0001-0001-000000000003",
+    "front": "Why use a `with` statement when opening files?",
+    "back": "It is a context manager that automatically closes the file and releases resources even if an exception is raised, preventing resource leaks.",
+    "topic": "Python Basics",
+    "difficulty": "easy",
+    "status": "known",
+    "times_reviewed": 2,
+    "correct_answers": 2,
+    "created_at": "2025-01-10T09:02:00"
+  },
+  {
+    "id": "a1a1a1a1-0001-0001-0001-000000000004",
+    "front": "What is a list comprehension?",
+    "back": "A concise single-line way to build a list: [expr for item in iterable if condition]. More readable and often faster than an equivalent for-loop.",
+    "topic": "Python Basics",
+    "difficulty": "easy",
+    "status": "known",
+    "times_reviewed": 3,
+    "correct_answers": 3,
+    "created_at": "2025-01-10T09:03:00"
+  },
+  {
+    "id": "a1a1a1a1-0001-0001-0001-000000000005",
+    "front": "How do you define a custom exception in Python?",
+    "back": "Subclass the built-in Exception class (or a more specific subclass). Override __init__ if you need to attach extra context to the error.",
+    "topic": "Python Basics",
+    "difficulty": "hard",
+    "status": "new",
+    "times_reviewed": 0,
+    "correct_answers": 0,
+    "created_at": "2025-01-10T09:04:00"
+  },
+  {
+    "id": "b2b2b2b2-0002-0002-0002-000000000001",
+    "front": "What is the difference between a list and a tuple in Python?",
+    "back": "Lists are mutable (elements can be added, removed, or changed). Tuples are immutable, slightly faster, and can be used as dictionary keys.",
+    "topic": "Data Structures",
+    "difficulty": "easy",
+    "status": "known",
+    "times_reviewed": 2,
+    "correct_answers": 2,
+    "created_at": "2025-01-10T10:00:00"
+  },
+  {
+    "id": "b2b2b2b2-0002-0002-0002-000000000002",
+    "front": "What is a dictionary in Python?",
+    "back": "A hash-map storing key-value pairs. Provides O(1) average-case lookup, insertion, and deletion. Keys must be hashable (immutable).",
+    "topic": "Data Structures",
+    "difficulty": "easy",
+    "status": "known",
+    "times_reviewed": 2,
+    "correct_answers": 2,
+    "created_at": "2025-01-10T10:01:00"
+  },
+  {
+    "id": "b2b2b2b2-0002-0002-0002-000000000003",
+    "front": "What is a stack and how do you implement one in Python?",
+    "back": "A LIFO (Last In, First Out) structure. Use a regular list: .append() to push an item onto the top, .pop() to remove from the top.",
+    "topic": "Data Structures",
+    "difficulty": "medium",
+    "status": "known",
+    "times_reviewed": 1,
+    "correct_answers": 1,
+    "created_at": "2025-01-10T10:02:00"
+  },
+  {
+    "id": "b2b2b2b2-0002-0002-0002-000000000004",
+    "front": "What does Big O notation describe?",
+    "back": "The worst-case growth rate of an algorithm's time or space as input size n grows, ignoring constant factors. E.g. O(n), O(log n), O(n²).",
+    "topic": "Data Structures",
+    "difficulty": "medium",
+    "status": "known",
+    "times_reviewed": 2,
+    "correct_answers": 1,
+    "created_at": "2025-01-10T10:03:00"
+  },
+  {
+    "id": "b2b2b2b2-0002-0002-0002-000000000005",
+    "front": "What is a hash table?",
+    "back": "A data structure that maps keys to values via a hash function for O(1) average access. Python's dict is a hash table implementation.",
+    "topic": "Data Structures",
+    "difficulty": "hard",
+    "status": "review",
+    "times_reviewed": 1,
+    "correct_answers": 0,
+    "created_at": "2025-01-10T10:04:00"
+  },
+  {
+    "id": "a3251981-6499-42c4-b3c3-b7792326c98b",
+    "front": "What is an optimisation problem?",
+    "back": "An optimisation problem is a set of instances defined by a pair (F, o), where F is a set of feasible solutions and o is the objective function.",
+    "topic": "Discrete Optimisation Problems",
+    "difficulty": "medium",
+    "status": "known",
+    "times_reviewed": 1,
+    "correct_answers": 1,
+    "created_at": "2026-06-03T20:52:10"
+  },
+  {
+    "id": "0033dae0-f7eb-4297-906f-77db66c5e8ae",
+    "front": "What is the difference between continuous and discrete optimisation?",
+    "back": "Continuous optimisation involves parameters that are continuous, while discrete (or combinatorial) optimisation involves discrete parameters such as bits or natural numbers.",
+    "topic": "Discrete Optimisation Problems",
+    "difficulty": "medium",
+    "status": "known",
+    "times_reviewed": 1,
+    "correct_answers": 1,
+    "created_at": "2026-06-03T20:52:10"
+  },
+  {
+    "id": "06525c98-f894-43af-9435-7732d403e85c",
+    "front": "What is the knapsack problem?",
+    "back": "The knapsack problem involves selecting a subset of items with given values and weights to maximize total value without exceeding a specified capacity.",
+    "topic": "Discrete Optimisation Problems",
+    "difficulty": "hard",
+    "status": "known",
+    "times_reviewed": 1,
+    "correct_answers": 1,
+    "created_at": "2026-06-03T20:52:10"
+  },
+  {
+    "id": "28e44ae0-61dc-48d0-b9a1-0ede2021ce52",
+    "front": "What does NP-complete mean in the context of optimisation problems?",
+    "back": "NP-complete refers to a class of problems that are computationally hard and for which no known polynomial-time solutions exist.",
+    "topic": "Discrete Optimisation Problems",
+    "difficulty": "hard",
+    "status": "known",
+    "times_reviewed": 1,
+    "correct_answers": 1,
+    "created_at": "2026-06-03T20:52:10"
+  },
+  {
+    "id": "06b6d57d-e30d-4290-9c3c-86e24e03cd81",
+    "front": "What are some examples of discrete optimisation problems?",
+    "back": "Examples include the Knapsack problem, Travelling Salesman Problem (TSP), Minimum Spanning Tree (MST), and Satisfiability problem (SAT).",
+    "topic": "Discrete Optimisation Problems",
+    "difficulty": "medium",
+    "status": "known",
+    "times_reviewed": 1,
+    "correct_answers": 1,
+    "created_at": "2026-06-03T20:52:10"
+  },
+  {
+    "id": "5ba1daea-3b9a-4af0-9a25-a392963511c4",
+    "front": "Describe the Travelling Salesman Problem (TSP).",
+    "back": "The TSP involves finding the shortest possible route that visits each city exactly once and returns to the origin city.",
+    "topic": "Discrete Optimisation Problems",
+    "difficulty": "hard",
+    "status": "review",
+    "times_reviewed": 1,
+    "correct_answers": 0,
+    "created_at": "2026-06-03T20:52:10"
+  },
+  {
+    "id": "2b0dc90c-b94e-43fa-8393-edbc3c9c5238",
+    "front": "What is meant by the term 'optimal' in optimisation?",
+    "back": "Optimal refers to the best possible solution in a specified way, derived from the Latin 'optimus'.",
+    "topic": "Discrete Optimisation Problems",
+    "difficulty": "easy",
+    "status": "review",
+    "times_reviewed": 1,
+    "correct_answers": 0,
+    "created_at": "2026-06-03T20:52:10"
+  },
+  {
+    "id": "2e1fa450-1ceb-4e5e-8b58-826ffe391e51",
+    "front": "What is the brute-force method in discrete optimisation?",
+    "back": "The brute-force method involves checking all possible solutions to find the optimal one, which can be computationally expensive.",
+    "topic": "Discrete Optimisation Problems",
+    "difficulty": "hard",
+    "status": "review",
+    "times_reviewed": 1,
+    "correct_answers": 0,
+    "created_at": "2026-06-03T20:52:10"
+  },
+  {
+    "id": "def50b8b-85ed-4c61-af7b-e0701cc333ee",
+    "front": "What is the significance of feasibility in optimisation problems?",
+    "back": "Feasibility refers to the conditions that must be met for a solution to be considered valid within the constraints of the problem.",
+    "topic": "Discrete Optimisation Problems",
+    "difficulty": "medium",
+    "status": "known",
+    "times_reviewed": 1,
+    "correct_answers": 1,
+    "created_at": "2026-06-03T20:52:10"
+  },
+  {
+    "id": "30c2314c-a005-45ed-8983-276e42c18057",
+    "front": "How is the objective function defined in an optimisation problem?",
+    "back": "The objective function is a function o: F → R that quantifies the quality of solutions in terms of minimisation or maximisation.",
+    "topic": "Discrete Optimisation Problems",
+    "difficulty": "medium",
+    "status": "review",
+    "times_reviewed": 1,
+    "correct_answers": 0,
+    "created_at": "2026-06-03T20:52:10"
+  },
+  {
+    "id": "090fc15f-1041-495d-9fe1-61f2fa5f2974",
+    "front": "What are the two parts of the OUTPUT description in an optimisation problem specification?",
+    "back": "The OUTPUT description consists of feasibility conditions and optimality conditions related to the objective function.",
+    "topic": "Discrete Optimisation Problems",
+    "difficulty": "medium",
+    "status": "review",
+    "times_reviewed": 1,
+    "correct_answers": 0,
+    "created_at": "2026-06-03T20:52:10"
+  }
+]
